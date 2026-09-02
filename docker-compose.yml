@@ -1,0 +1,60 @@
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-enrollchain}
+      POSTGRES_USER: ${POSTGRES_USER:-enrollchain}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-enrollchain}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-enrollchain} -d ${POSTGRES_DB:-enrollchain}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+  hardhat:
+    build:
+      context: ./blockchain
+    command: npm run node
+    ports:
+      - "8545:8545"
+
+  backend:
+    build:
+      context: ./backend
+    command: sh -c "python manage.py migrate && python manage.py runserver 0.0.0.0:8000"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-enrollchain}:${POSTGRES_PASSWORD:-enrollchain}@db:5432/${POSTGRES_DB:-enrollchain}
+      BLOCKCHAIN_RPC_URL: http://hardhat:8545
+    volumes:
+      - ./backend:/app
+      - private-media:/app/private-media
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+    command: npm run dev -- --host 0.0.0.0
+    environment:
+      VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000/api/v1}
+      VITE_DEV_PROXY_TARGET: http://backend:8000
+    volumes:
+      - ./frontend:/app
+      - frontend-modules:/app/node_modules
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+
+volumes:
+  postgres-data:
+  private-media:
+  frontend-modules:
