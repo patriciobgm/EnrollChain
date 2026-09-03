@@ -4,8 +4,8 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "compile": "XDG_CACHE_HOME=.hardhat-cache hardhat compile",
-    "node": "XDG_CACHE_HOME=.hardhat-cache hardhat node --hostname 0.0.0.0",
+    "compile": "hardhat compile",
+    "node": "hardhat node --hostname 0.0.0.0",
     "test": "npm run compile"
   },
   "devDependencies": {
