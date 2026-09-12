@@ -11,11 +11,17 @@ describe("App", () => {
   it("renders the guarded foundation shell", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(
-        JSON.stringify({ status: "ok", database: "available", blockchain_enabled: false }),
+        JSON.stringify({
+          status: "ok",
+          database: "available",
+          blockchain_enabled: false,
+        }),
         { status: 200, headers: { "Content-Type": "application/json" } },
       ),
     );
-    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
 
     render(
       <MemoryRouter>
@@ -25,8 +31,12 @@ describe("App", () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByRole("heading", { name: /secure admissions/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: /secure admissions/i }),
+    ).toBeInTheDocument();
     expect(await screen.findByText("Foundation available")).toBeInTheDocument();
-    expect(screen.getByText(/client-dependent modules remain deferred/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/client-dependent modules remain deferred/i),
+    ).toBeInTheDocument();
   });
 });

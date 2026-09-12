@@ -8,6 +8,8 @@ from .managers import UserManager
 
 class UserRole(models.TextChoices):
     APPLICANT = "APPLICANT", "Applicant"
+    GUIDANCE_OFFICER = "GUIDANCE_OFFICER", "Guidance Officer"
+    CLASS_ADVISER = "CLASS_ADVISER", "Class Adviser"
     REGISTRAR = "REGISTRAR", "Registrar"
     ADMINISTRATOR = "ADMINISTRATOR", "Administrator"
 

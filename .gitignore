@@ -29,3 +29,7 @@ blockchain/cache/
 blockchain/typechain-types/
 blockchain/ignition/deployments/
 blockchain/.hardhat-cache/
+
+# Browser test artifacts
+frontend/test-results/
+frontend/playwright-report/

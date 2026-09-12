@@ -34,6 +34,7 @@ INSTALLED_APPS = [
     "apps.accounts",
     "apps.audit",
     "apps.blockchain_records",
+    "apps.admissions",
 ]
 
 MIDDLEWARE = [
@@ -121,6 +122,7 @@ SPECTACULAR_SETTINGS = {
     "DESCRIPTION": "Versioned API for the EnrollChain admission and registration prototype.",
     "VERSION": "0.1.0",
     "SERVE_INCLUDE_SCHEMA": False,
+    "COMPONENT_SPLIT_REQUEST": True,
 }
 
 BLOCKCHAIN = {

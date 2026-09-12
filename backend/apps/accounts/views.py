@@ -1,8 +1,10 @@
 from drf_spectacular.utils import extend_schema
 from rest_framework import status
+from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
@@ -38,7 +40,12 @@ class LogoutView(APIView):
     def post(self, request):
         serializer = LogoutSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        token = RefreshToken(serializer.validated_data["refresh"])
+        try:
+            token = RefreshToken(serializer.validated_data["refresh"])
+        except TokenError as exc:
+            raise ValidationError({"refresh": "Invalid or expired refresh token."}) from exc
+        if str(token["user_id"]) != str(request.user.pk):
+            raise ValidationError({"refresh": "The refresh token does not belong to this session."})
         token.blacklist()
         record_audit_event(
             action="LOGOUT",
