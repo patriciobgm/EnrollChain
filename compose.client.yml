@@ -1,0 +1,84 @@
+name: enrollchain-client
+x-backend: &backend
+  build:
+    context: .
+    dockerfile: Dockerfile.client
+    target: backend
+  env_file: .env.client
+  environment:
+    DATABASE_URL: postgresql://enrollchain:${POSTGRES_PASSWORD:?Run scripts/prepare-client-test.py}@db:5432/enrollchain_client
+    DJANGO_DEBUG: "false"
+    CLIENT_TEST_MODE: "true"
+    BLOCKCHAIN_LOCAL_CONFIG: "true"
+    BLOCKCHAIN_CONFIG_FILE: /app/runtime/blockchain.json
+    BLOCKCHAIN_RPC_URL: http://hardhat:8545
+    BLOCKCHAIN_CHAIN_ID: "31337"
+    PRIVATE_MEDIA_ROOT: /app/private-media
+    CLIENT_TEST_ACCOUNTS_FILE: /run/secrets/client_accounts
+  volumes:
+    - client-files:/app/private-media
+    - client-runtime:/app/runtime
+  secrets: [client_accounts]
+  restart: unless-stopped
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: enrollchain_client
+      POSTGRES_USER: enrollchain
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Run scripts/prepare-client-test.py}
+    volumes: [client-db:/var/lib/postgresql/data]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U enrollchain -d enrollchain_client"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+  hardhat:
+    build:
+      context: .
+      dockerfile: Dockerfile.client
+      target: blockchain
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:8545',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({jsonrpc:'2.0',id:1,method:'eth_chainId',params:[]})}).then(r=>r.json()).then(r=>{if(r.result!=='0x7a69')process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    restart: unless-stopped
+  backend:
+    <<: *backend
+    depends_on:
+      db: {condition: service_healthy}
+      hardhat: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health/')"]
+      interval: 10s
+      timeout: 5s
+      start_period: 60s
+      retries: 12
+  worker:
+    <<: *backend
+    command: [worker]
+    depends_on:
+      backend: {condition: service_healthy}
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.client
+      target: web
+    ports: ["${CLIENT_BIND_ADDRESS:-127.0.0.1}:${CLIENT_WEB_PORT:-8080}:8080"]
+    depends_on:
+      backend: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, wget, -q, --spider, http://127.0.0.1:8080/]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+volumes:
+  client-db:
+  client-files:
+  client-runtime:
+secrets:
+  client_accounts:
+    file: .client-test/accounts.json

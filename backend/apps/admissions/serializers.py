@@ -1,6 +1,8 @@
 from django.utils import timezone
 from rest_framework import serializers
 
+from apps.accounts.models import User
+
 from .models import (
     AdmissionPeriod,
     Application,
@@ -11,6 +13,7 @@ from .models import (
     Requirement,
     RequirementRule,
     SchoolYear,
+    TrackConfiguration,
 )
 from .permissions import staff_can
 from .services import document_review_status, validate_application_configuration
@@ -48,6 +51,9 @@ class ProgramSerializer(serializers.ModelSerializer):
         fields = "__all__"
 
     def validate(self, attrs):
+        track = attrs.get("track", getattr(self.instance, "track", ""))
+        if not TrackConfiguration.objects.filter(code=track, active=True).exists():
+            raise serializers.ValidationError({"track": "Select an active configured track."})
         if self.instance and attrs.get("track", self.instance.track) != self.instance.track:
             if self.instance.application_set.exists() or self.instance.requirementrule_set.exists():
                 raise serializers.ValidationError(
@@ -57,11 +63,21 @@ class ProgramSerializer(serializers.ModelSerializer):
 
 
 class LearnerSerializer(serializers.ModelSerializer):
+    owner_email = serializers.EmailField(source="owner.email", read_only=True, allow_null=True)
     age = serializers.IntegerField(read_only=True)
+    email = serializers.EmailField(source="owner.email", read_only=True, allow_null=True)
 
     class Meta:
         model = Learner
         fields = "__all__"
+
+    def validate_lrn(self, value):
+        return value or None
+
+    def validate_last_grade_completed(self, value):
+        if value is not None and not 1 <= value <= 12:
+            raise serializers.ValidationError("Choose a completed grade from 1 to 12.")
+        return value
 
     def validate_birthdate(self, value):
         if value > timezone.localdate():
@@ -70,14 +86,24 @@ class LearnerSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         user = self.context["request"].user
-        if user.role == "APPLICANT":
+        if user.role == "LEARNER":
             if "owner" in attrs and attrs["owner"] != user:
                 raise serializers.ValidationError(
                     {"owner": "You can only manage your own profile."}
                 )
             attrs["owner"] = user
-        elif attrs.get("owner") and attrs["owner"].role != "APPLICANT":
-            raise serializers.ValidationError({"owner": "Choose an applicant account."})
+        elif attrs.get("owner") and attrs["owner"].role != "LEARNER":
+            raise serializers.ValidationError({"owner": "Choose an learner account."})
+        owner = attrs.get("owner", getattr(self.instance, "owner", None))
+        if (
+            owner
+            and Learner.objects.filter(owner=owner)
+            .exclude(pk=getattr(self.instance, "pk", None))
+            .exists()
+        ):
+            raise serializers.ValidationError(
+                "A learner has one learner profile. Open your existing profile."
+            )
         if self.instance and "owner" in attrs and attrs["owner"] != self.instance.owner:
             raise serializers.ValidationError({"owner": "Profile ownership cannot be reassigned."})
         return attrs
@@ -94,21 +120,30 @@ class ApplicationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Application
         fields = "__all__"
-        read_only_fields = ["reference", "created_by", "status", "submitted_at"]
+        read_only_fields = [
+            "reference",
+            "created_by",
+            "status",
+            "submitted_at",
+            "enrollment_status",
+            "qualification_snapshot",
+            "pre_enrolled_at",
+            "officially_enrolled_at",
+        ]
 
     def get_fields(self):
         fields = super().get_fields()
         request = self.context.get("request")
-        if request and request.user.is_authenticated and request.user.role == "APPLICANT":
+        if request and request.user.is_authenticated and request.user.role == "LEARNER":
             fields["learner"].queryset = Learner.objects.filter(owner=request.user)
         return fields
 
     def validate(self, attrs):
         user = self.context["request"].user
         learner = attrs.get("learner", getattr(self.instance, "learner", None))
-        if user.role == "APPLICANT" and learner.owner_id != user.pk:
+        if user.role == "LEARNER" and learner.owner_id != user.pk:
             raise serializers.ValidationError({"learner": "Select your own learner profile."})
-        if user.role != "APPLICANT" and not staff_can(user, "view_learner"):
+        if user.role != "LEARNER" and not staff_can(user, "view_learner"):
             raise serializers.ValidationError({"learner": "Learner access permission is required."})
         source = attrs.get("source", getattr(self.instance, "source", "ONLINE"))
         setting_source = not self.instance or source != self.instance.source
@@ -156,6 +191,8 @@ class RequirementRuleSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         program = attrs.get("program", getattr(self.instance, "program", None))
         track = attrs.get("track", getattr(self.instance, "track", ""))
+        if track and not TrackConfiguration.objects.filter(code=track).exists():
+            raise serializers.ValidationError({"track": "Unknown configured track."})
         if program and track and program.track != track:
             raise serializers.ValidationError({"program": "Program must match the selected track."})
         return attrs
@@ -226,3 +263,31 @@ class ReviewQueueSerializer(serializers.Serializer):
     next = serializers.URLField(allow_null=True)
     previous = serializers.URLField(allow_null=True)
     results = DocumentSerializer(many=True)
+
+
+class LinkApplicantSerializer(serializers.Serializer):
+    owner = serializers.PrimaryKeyRelatedField(
+        queryset=User.objects.filter(role="LEARNER", is_active=True)
+    )
+
+
+class IntegrityUploadSerializer(serializers.Serializer):
+    file = serializers.FileField(
+        required=False, help_text="Optional presented PDF to compare; omission checks stored bytes."
+    )
+
+
+class ReviewApplicationGroupSerializer(serializers.Serializer):
+    application = serializers.UUIDField()
+    reference = serializers.CharField()
+    learner_name = serializers.CharField()
+    period_name = serializers.CharField()
+    document_count = serializers.IntegerField()
+    uploaded_at = serializers.DateTimeField()
+
+
+class GroupedReviewQueueSerializer(serializers.Serializer):
+    count = serializers.IntegerField()
+    next = serializers.URLField(allow_null=True)
+    previous = serializers.URLField(allow_null=True)
+    results = ReviewApplicationGroupSerializer(many=True)

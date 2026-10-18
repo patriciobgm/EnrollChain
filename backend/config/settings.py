@@ -55,7 +55,7 @@ ASGI_APPLICATION = "config.asgi.application"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [],
+        "DIRS": [BASE_DIR / "templates"],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
@@ -90,15 +90,13 @@ USE_TZ = True
 
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
-PRIVATE_MEDIA_ROOT = BASE_DIR / "private-media"
+PRIVATE_MEDIA_ROOT = Path(os.getenv("PRIVATE_MEDIA_ROOT", BASE_DIR / "private-media"))
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 CORS_ALLOWED_ORIGINS = env_list("CORS_ALLOWED_ORIGINS", "http://localhost:5173")
 
 REST_FRAMEWORK = {
-    "DEFAULT_AUTHENTICATION_CLASSES": (
-        "rest_framework_simplejwt.authentication.JWTAuthentication",
-    ),
+    "DEFAULT_AUTHENTICATION_CLASSES": ("apps.accounts.security.SecurityJWTAuthentication",),
     "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.IsAuthenticated",),
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "DEFAULT_RENDERER_CLASSES": ("rest_framework.renderers.JSONRenderer",)
@@ -115,6 +113,7 @@ SIMPLE_JWT = {
     "ROTATE_REFRESH_TOKENS": True,
     "BLACKLIST_AFTER_ROTATION": True,
     "UPDATE_LAST_LOGIN": True,
+    "CHECK_REVOKE_TOKEN": True,
 }
 
 SPECTACULAR_SETTINGS = {
@@ -123,6 +122,20 @@ SPECTACULAR_SETTINGS = {
     "VERSION": "0.1.0",
     "SERVE_INCLUDE_SCHEMA": False,
     "COMPONENT_SPLIT_REQUEST": True,
+    "ENUM_NAME_OVERRIDES": {
+        "ApplicationIntakeStatus": [("DRAFT", "Draft"), ("SUBMITTED", "Submitted")],
+        "LisStatus": [
+            (s, s)
+            for s in [
+                "NOT_READY",
+                "READY_FOR_LIS",
+                "SUBMITTED_TO_LIS",
+                "LIS_CONFIRMED",
+                "LIS_REJECTED",
+            ]
+        ],
+        "BlockchainTransactionStatus": "apps.blockchain_records.models.TransactionStatus.choices",
+    },
 }
 
 BLOCKCHAIN = {
@@ -141,3 +154,12 @@ SESSION_COOKIE_HTTPONLY = True
 CSRF_COOKIE_HTTPONLY = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
 X_FRAME_OPTIONS = "DENY"
+
+MFA_ENCRYPTION_KEY = os.getenv("MFA_ENCRYPTION_KEY", "")
+
+BLOCKCHAIN_LOCAL_CONFIG = env_bool("BLOCKCHAIN_LOCAL_CONFIG", DEBUG)
+
+CLIENT_TEST_MODE = env_bool("CLIENT_TEST_MODE", False)
+BLOCKCHAIN_CONFIG_FILE = Path(
+    os.getenv("BLOCKCHAIN_CONFIG_FILE", BASE_DIR / ".blockchain-local.json")
+)

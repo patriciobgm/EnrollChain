@@ -28,11 +28,15 @@ DEFAULT_REQUIREMENTS = (
 )
 
 
-def audit(instance, action, request):
+def audit(instance, action, request, metadata=None):
+    from apps.accounts.notifications import notify_for_record
+
+    notify_for_record(instance, action, request)
     record_audit_event(
         action=action,
         entity=type(instance).__name__,
         entity_id=instance.pk,
+        metadata=metadata,
         user=request.user,
         request=request,
     )
@@ -71,10 +75,23 @@ def document_review_status(document):
 
 
 def can_replace_document(application, document):
+    if application.enrollment_status in {
+        "QUALIFIED",
+        "PRE_ENROLLED",
+        "SECTION_ASSIGNED",
+        "FOR_LIS_REGISTRATION",
+        "LIS_CONFIRMED",
+        "OFFICIALLY_ENROLLED",
+        "REJECTED",
+    }:
+        return False
     return application.status == Application.Status.DRAFT or (
         application.status == Application.Status.SUBMITTED
-        and document is not None
-        and document_review_status(document) == DocumentReview.Decision.RESUBMISSION_REQUESTED
+        and (
+            document is None
+            or document_review_status(document)
+            in {DocumentReview.Decision.RESUBMISSION_REQUESTED, DocumentReview.Decision.REJECTED}
+        )
     )
 
 
@@ -107,6 +124,10 @@ def ensure_draft(application):
 
 
 def validate_application_configuration(application):
+    from .models import TrackConfiguration
+
+    if not TrackConfiguration.objects.filter(code=application.track, active=True).exists():
+        raise ValidationError({"track": "Select an active configured track."})
     period = application.admission_period
     if not period.is_active:
         raise ValidationError({"admission_period": "This admission period is inactive."})
@@ -127,13 +148,24 @@ def submit_application(application, request):
     today = timezone.localdate()
     if not application.admission_period.opens_on <= today <= application.admission_period.closes_on:
         raise ValidationError({"admission_period": "The admission period is not open."})
-    missing = [r["name"] for r in checklist(application) if r["is_required"] and not r["uploaded"]]
-    if missing:
-        raise ValidationError({"requirements": missing})
+    if application.program_id is None:
+        raise ValidationError(
+            {"program": "Select a cluster, strand or specialization before early enrollment."}
+        )
     application.status = Application.Status.SUBMITTED
     application.submitted_at = timezone.now()
     application.save(update_fields=["status", "submitted_at", "updated_at"])
     audit(application, "SUBMIT_APPLICATION", request)
+    from .enrollment_services import event, refresh_document_stage
+
+    event(
+        application,
+        "EARLY_ENROLLMENT_SUBMITTED",
+        request,
+        "SUBMITTED",
+        metadata={"track": application.track, "program": application.program_id},
+    )
+    refresh_document_stage(application, request)
     return application
 
 
@@ -199,6 +231,9 @@ def upload_document(*, application, requirement, upload, request):
                 sha256=digest,
                 version=version,
                 uploaded_by=request.user,
+                validation_flags=["DUPLICATE_CONTENT"]
+                if DocumentSubmission.objects.filter(sha256=digest).exists()
+                else [],
             )
             document.save()
             audit(
@@ -208,6 +243,9 @@ def upload_document(*, application, requirement, upload, request):
                 else "UPLOAD_DOCUMENT",
                 request,
             )
+            from .enrollment_services import refresh_document_stage
+
+            refresh_document_stage(application, request)
         return document
     except Exception:
         if document is not None and document.file and document.file._committed:
@@ -239,8 +277,63 @@ def review_document(*, document, decision, remarks, request):
         raise ValidationError({"remarks": "Explain the rejection or correction needed."})
     if len(remarks) > 2000:
         raise ValidationError({"remarks": "Use at most 2000 characters."})
+    if application.enrollment_status in {
+        "QUALIFIED",
+        "PRE_ENROLLED",
+        "SECTION_ASSIGNED",
+        "FOR_LIS_REGISTRATION",
+        "LIS_CONFIRMED",
+        "OFFICIALLY_ENROLLED",
+        "REJECTED",
+    }:
+        raise ValidationError(
+            "Document decisions are locked after qualification. Reopen evaluation first."
+        )
+    if decision == "VERIFIED":
+        try:
+            with document.file.open("rb") as stored:
+                actual = hashlib.file_digest(stored, "sha256").hexdigest()
+        except OSError as exc:
+            raise ValidationError("The stored file is unavailable.") from exc
+        if actual != document.sha256:
+            raise ValidationError(
+                "Stored document integrity failed. Request a replacement before verification."
+            )
     review = DocumentReview.objects.create(
         document=document, decision=decision, remarks=remarks, reviewed_by=user
     )
     audit(review, "REVIEW_DOCUMENT", request)
+    audit(document, "DOCUMENT_" + decision, request)
+    from .enrollment_services import refresh_document_stage
+
+    refresh_document_stage(application, request)
+    if decision == "VERIFIED":
+        from apps.blockchain_records.services import enqueue_document
+
+        enqueue_document(document)
     return review
+
+
+@transaction.atomic
+def link_applicant(learner, owner, request):
+    from rest_framework.exceptions import PermissionDenied
+
+    from .permissions import staff_can
+
+    if request.user.role not in {"REGISTRAR", "ADMINISTRATOR"} or not staff_can(
+        request.user, "change_learner"
+    ):
+        raise PermissionDenied("Only authorized registrar/administrator staff can link an account.")
+    learner = Learner.objects.select_for_update().get(pk=learner.pk)
+    if owner.role != "LEARNER" or not owner.is_active:
+        raise ValidationError({"owner": "Choose an active learner account."})
+    if learner.owner_id:
+        raise ValidationError(
+            {"owner": "This learner is already linked. Ownership cannot be reassigned."}
+        )
+    if Learner.objects.filter(owner=owner).exclude(pk=learner.pk).exists():
+        raise ValidationError({"owner": "This learner account already has a profile."})
+    learner.owner = owner
+    learner.save(update_fields=["owner", "updated_at"])
+    audit(learner, "LINK_LEARNER", request, {"owner_id": str(owner.pk)})
+    return learner

@@ -99,3 +99,24 @@ class DocumentAdmin(WorkflowAdmin):
 class DocumentReviewAdmin(WorkflowAdmin):
     list_display = ["document", "decision", "reviewed_by", "reviewed_at"]
     list_filter = ["decision", "reviewed_at"]
+
+
+# Registered for inspection tooling; no technical-admin URL is exposed.
+from .enrollment_models import (  # noqa: E402
+    EnrollmentEvent,
+    GuidanceInterview,
+    LisRecord,
+    Section,
+    SectionAssignment,
+    TrackConfiguration,
+)
+
+for model in [
+    TrackConfiguration,
+    Section,
+    SectionAssignment,
+    GuidanceInterview,
+    EnrollmentEvent,
+    LisRecord,
+]:
+    admin.site.register(model, WorkflowAdmin)

@@ -11,14 +11,18 @@ import { apiRequest, getTokens, jsonBody, setTokens } from "./api";
 export type User = {
   id: string;
   email: string;
+  first_name?: string;
+  last_name?: string;
   role: string;
   permissions: string[];
+  is_superuser?: boolean;
+  mfa_enabled?: boolean;
 };
 type Auth = {
   user: User | null;
   loading: boolean;
   error: string;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string, code?: string) => Promise<void>;
   logout: () => Promise<void>;
 };
 const AuthContext = createContext<Auth | null>(null);
@@ -56,10 +60,10 @@ export function AuthProvider({ children }: PropsWithChildren) {
       window.removeEventListener("session-expired", expired);
     };
   }, [cache]);
-  async function login(email: string, password: string) {
+  async function login(email: string, password: string, code = "") {
     const tokens = await apiRequest<{ access: string; refresh: string }>(
       "/auth/token/",
-      jsonBody({ email, password }),
+      jsonBody({ email, password, code }),
     );
     setTokens(tokens);
     try {
@@ -99,7 +103,7 @@ export function useAuth() {
 // eslint-disable-next-line react-refresh/only-export-components
 export function can(user: User | null, permission: string) {
   return (
-    user?.role === "APPLICANT" ||
+    user?.role === "LEARNER" ||
     !!user?.permissions.includes(`admissions.${permission}`)
   );
 }

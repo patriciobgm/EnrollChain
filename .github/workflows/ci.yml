@@ -11,6 +11,23 @@ permissions:
 jobs:
   backend:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: enrollchain_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ci-test-only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:ci-test-only@localhost:5432/enrollchain_test
+      BLOCKCHAIN_LOCAL_CONFIG: "false"
     defaults:
       run:
         working-directory: backend
@@ -45,6 +62,11 @@ jobs:
       - run: npm run test -- --run
       - run: npm run build
       - run: npx playwright install --with-deps chromium
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: python -m venv ../backend/.venv
+      - run: ../backend/.venv/bin/pip install -r ../backend/requirements.txt
       - run: npm run test:e2e
 
   blockchain:

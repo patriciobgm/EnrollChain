@@ -33,3 +33,8 @@ blockchain/.hardhat-cache/
 # Browser test artifacts
 frontend/test-results/
 frontend/playwright-report/
+
+# Local development blockchain connection (no production custody)
+backend/.blockchain-local.json
+.client-test/
+.env.client

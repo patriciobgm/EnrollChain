@@ -1,14 +1,19 @@
+import { IntegrityCheck } from "../components/IntegrityCheck";
+import { EnrollmentPanel } from "../components/EnrollmentPanel";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
 import { Link, useParams } from "react-router-dom";
 import { ErrorMessage, Field, Page } from "../components/Form";
 import { apiRequest, jsonBody } from "../lib/api";
+import { readable } from "../lib/admissions";
 import type {
   Application,
   Document,
   Program,
   Requirement,
+  TrackConfiguration,
 } from "../lib/admissions";
+import { PdfPreviewDialog } from "../components/PdfPreview";
 import { downloadDocument } from "../lib/download";
 import { ReviewStatusBadge } from "../components/ReviewStatusBadge";
 import { LoadingState } from "../components/ui/LoadingState";
@@ -106,6 +111,10 @@ export function ApplicationDetailPage() {
     queryFn: () => apiRequest<Document[]>(`/documents/?application=${id}`),
     enabled: can(user, "view_documentsubmission"),
   });
+  const tracks = useQuery({
+    queryKey: ["tracks"],
+    queryFn: () => apiRequest<TrackConfiguration[]>("/tracks/"),
+  });
   const programs = useQuery({
     queryKey: ["programs"],
     queryFn: () => apiRequest<Program[]>("/programs/"),
@@ -117,6 +126,7 @@ export function ApplicationDetailPage() {
       cache.invalidateQueries({ queryKey: ["requirements", id] }),
       cache.invalidateQueries({ queryKey: ["documents", id] }),
       cache.invalidateQueries({ queryKey: ["applications"] }),
+      cache.invalidateQueries({ queryKey: ["enrollment", id] }),
     ]);
   }
   const submit = useMutation({
@@ -172,7 +182,6 @@ export function ApplicationDetailPage() {
           <section className="panel mb-6 space-y-2">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h2 className="text-xl font-bold">{app.learner_name}</h2>
-              <span className="badge">{app.status}</span>
             </div>
             <p className="break-all text-sm text-muted">{app.reference}</p>
             <p>
@@ -181,7 +190,7 @@ export function ApplicationDetailPage() {
             </p>
             <p>
               Grade {app.grade_level} · {app.track.replaceAll("_", " ")} ·{" "}
-              {app.classification} · {app.source.replaceAll("_", " ")}
+              {readable(app.classification)} · {app.source.replaceAll("_", " ")}
             </p>
             <p className="text-sm">
               Created: {new Date(app.created_at).toLocaleString()}
@@ -201,12 +210,12 @@ export function ApplicationDetailPage() {
             )}
             {app.status === "SUBMITTED" && (
               <p role="status">
-                Application submitted. This confirms receipt; an admission
-                decision has not been made. If a correction is requested, you
-                can replace that document below.
+                Upload missing requirements below. Rejected files and correction
+                requests can be resubmitted.
               </p>
             )}
           </section>
+          <EnrollmentPanel id={app.id} />
           {editing && app.status === "DRAFT" && (
             <form onSubmit={edit} className="panel mb-6 space-y-4">
               <h2 className="font-bold">Draft choices</h2>
@@ -228,13 +237,16 @@ export function ApplicationDetailPage() {
                     value={editTrack}
                     onChange={(e) => setEditTrack(e.target.value)}
                   >
-                    <option value="ACADEMIC">Academic</option>
-                    <option value="TECHNICAL_PROFESSIONAL">
-                      Technical Professional
-                    </option>
+                    {tracks.data
+                      ?.filter((t) => t.active)
+                      .map((t) => (
+                        <option key={t.code} value={t.code}>
+                          {t.name}
+                        </option>
+                      ))}
                   </select>
                 </Field>
-                <Field label="Program / specialization (optional)">
+                <Field label="Cluster / strand / specialization">
                   <select
                     key={`${editTrack}-${programs.isSuccess}`}
                     name="program"
@@ -255,11 +267,11 @@ export function ApplicationDetailPage() {
                 <Field label="Learner classification">
                   <select
                     name="classification"
-                    defaultValue={app.classification}
+                    defaultValue={readable(app.classification)}
                   >
                     <option value="NEW">New</option>
                     <option value="TRANSFEREE">Transferee</option>
-                    <option value="RETURNING">Returning</option>
+                    <option value="RETURNING">Balik-Aral</option>
                   </select>
                 </Field>
               </div>
@@ -272,6 +284,28 @@ export function ApplicationDetailPage() {
                 Save changes
               </button>
             </form>
+          )}
+          {app.status === "DRAFT" && can(user, "submit_application") && (
+            <section className="panel my-6 space-y-4">
+              <h2 className="font-bold">Submit application</h2>
+              <p>
+                Submit your early enrollment, then upload the required PDFs
+                below. Submission is not an admission decision or official LIS
+                enrollment.
+              </p>
+              <ErrorMessage error={submit.error} />
+              <button
+                className="action"
+                disabled={
+                  submit.isPending ||
+                  requirements.isPending ||
+                  requirements.isError
+                }
+                onClick={() => submit.mutate()}
+              >
+                {submit.isPending ? "Submitting…" : "Submit application"}
+              </button>
+            </section>
           )}
           <h2 className="mb-4 text-xl font-bold">Requirements checklist</h2>
           {requirements.isPending && (
@@ -309,28 +343,6 @@ export function ApplicationDetailPage() {
               </section>
             ))}
           </div>
-          {app.status === "DRAFT" && can(user, "submit_application") && (
-            <section className="panel my-6 space-y-4">
-              <h2 className="font-bold">Submit application</h2>
-              <p>
-                Upload all required PDFs before submitting. Submission locks the
-                application and learner profile for this milestone.
-              </p>
-              <ErrorMessage error={submit.error} />
-              <button
-                className="action"
-                disabled={
-                  submit.isPending ||
-                  requirements.isPending ||
-                  requirements.isError ||
-                  requirements.data?.some((r) => r.is_required && !r.uploaded)
-                }
-                onClick={() => submit.mutate()}
-              >
-                {submit.isPending ? "Submitting…" : "Submit application"}
-              </button>
-            </section>
-          )}
           {can(user, "view_documentsubmission") && (
             <section className="mt-8">
               <h2 className="mb-4 text-xl font-bold">
@@ -383,6 +395,10 @@ export function ApplicationDetailPage() {
                         {new Date(doc.uploaded_at).toLocaleString()}
                       </p>
                     </div>
+                    <PdfPreviewDialog
+                      id={doc.id}
+                      filename={doc.original_filename}
+                    />
                     <button
                       className="action secondary"
                       disabled={downloading !== null}
@@ -390,6 +406,7 @@ export function ApplicationDetailPage() {
                     >
                       {downloading === doc.id ? "Downloading…" : "Download PDF"}
                     </button>
+                    <IntegrityCheck id={doc.id} />
                   </article>
                 ))}
               </div>

@@ -3,13 +3,20 @@ from django.db.models import Exists, OuterRef, Q
 from django.db.models.deletion import ProtectedError
 from django.http import FileResponse
 from django.shortcuts import get_object_or_404
-from drf_spectacular.utils import OpenApiParameter, OpenApiTypes, extend_schema
+from drf_spectacular.utils import (
+    OpenApiParameter,
+    OpenApiTypes,
+    PolymorphicProxySerializer,
+    extend_schema,
+)
 from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.parsers import JSONParser, MultiPartParser
 from rest_framework.response import Response
+
+from apps.common.sorting import ordered
 
 from .models import (
     AdmissionPeriod,
@@ -29,7 +36,10 @@ from .serializers import (
     ChecklistSerializer,
     DocumentSerializer,
     DocumentUploadSerializer,
+    GroupedReviewQueueSerializer,
+    IntegrityUploadSerializer,
     LearnerSerializer,
+    LinkApplicantSerializer,
     ProgramSerializer,
     RequirementRuleSerializer,
     RequirementSerializer,
@@ -41,6 +51,7 @@ from .services import (
     audit,
     checklist,
     ensure_draft,
+    link_applicant,
     review_document,
     seed_period_requirements,
     submit_application,
@@ -121,21 +132,80 @@ class OwnedViewSet(
         queryset = super().get_queryset()
         if getattr(self, "swagger_fake_view", False) or not self.request.user.is_authenticated:
             return queryset.none()
-        if self.request.user.role == "APPLICANT":
+        if self.request.user.role == "LEARNER":
             return queryset.filter(**{self.owner_lookup: self.request.user})
         return queryset
 
 
 class LearnerViewSet(OwnedViewSet):
-    queryset = Learner.objects.all()
+    queryset = Learner.objects.select_related("owner").order_by("last_name", "first_name", "id")
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        search = self.request.query_params.get("search", "").strip()[:150]
+        for term in search.split():
+            queryset = queryset.filter(
+                Q(first_name__icontains=term)
+                | Q(last_name__icontains=term)
+                | Q(lrn__icontains=term)
+                | Q(owner__email__icontains=term)
+            )
+        return ordered(
+            queryset,
+            self.request.query_params,
+            {
+                "name": "last_name",
+                "lrn": "lrn",
+                "email": "owner__email",
+                "school": "previous_school",
+            },
+            "name",
+        )
+
+    def list(self, request, *args, **kwargs):
+        if request.user.role == "LEARNER" and "page" not in request.query_params:
+            return super().list(request, *args, **kwargs)
+        paginator = PageNumberPagination()
+        paginator.page_size = 20
+        page = paginator.paginate_queryset(self.get_queryset(), request, view=self)
+        return paginator.get_paginated_response(self.get_serializer(page, many=True).data)
+
     serializer_class = LearnerSerializer
+
+    @extend_schema(request=LinkApplicantSerializer, responses=LearnerSerializer)
+    @action(detail=True, methods=["post"], url_path="link-applicant")
+    def link_applicant(self, request, pk=None):
+        serializer = LinkApplicantSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        learner = link_applicant(self.get_object(), serializer.validated_data["owner"], request)
+        return Response(self.get_serializer(learner).data)
 
     def update(self, request, *args, **kwargs):
         with transaction.atomic():
             learner = (
                 self.get_queryset().select_for_update(of=("self",)).get(pk=self.get_object().pk)
             )
-            if learner.applications.filter(status="SUBMITTED").exists():
+            completion_fields = {
+                "last_grade_completed",
+                "school_year_completed",
+                "previous_school",
+                "previous_section",
+                "address",
+                "contact_number",
+            }
+            if learner.applications.filter(status="SUBMITTED").exists() and (
+                not set(request.data).issubset(completion_fields)
+                or learner.applications.filter(
+                    enrollment_status__in=[
+                        "QUALIFIED",
+                        "PRE_ENROLLED",
+                        "SECTION_ASSIGNED",
+                        "FOR_LIS_REGISTRATION",
+                        "LIS_CONFIRMED",
+                        "OFFICIALLY_ENROLLED",
+                    ]
+                ).exists()
+            ):
                 raise ValidationError(
                     "Profile changes after submission require a future correction workflow."
                 )
@@ -203,7 +273,7 @@ class DocumentViewSet(
         queryset = super().get_queryset()
         if getattr(self, "swagger_fake_view", False) or not self.request.user.is_authenticated:
             return queryset.none()
-        if self.request.user.role == "APPLICANT":
+        if self.request.user.role == "LEARNER":
             queryset = queryset.filter(application__learner__owner=self.request.user)
         application = self.request.query_params.get("application")
         if application:
@@ -218,10 +288,16 @@ class DocumentViewSet(
     @extend_schema(
         parameters=[
             OpenApiParameter("status", enum=["PENDING", *DocumentReview.Decision.values, "ALL"]),
+            OpenApiParameter("group", str, enum=["application"]),
+            OpenApiParameter("ordering", str),
             OpenApiParameter("search", str),
             OpenApiParameter("page", int),
         ],
-        responses=ReviewQueueSerializer,
+        responses=PolymorphicProxySerializer(
+            component_name="ReviewQueueResponse",
+            serializers=[ReviewQueueSerializer, GroupedReviewQueueSerializer],
+            resource_type_field_name=None,
+        ),
     )
     @action(detail=False, methods=["get"], url_path="review-queue")
     def review_queue(self, request):
@@ -241,6 +317,47 @@ class DocumentViewSet(
                 | Q(application__learner__last_name__icontains=search)
                 | Q(requirement__name__icontains=search)
             )
+        if request.query_params.get("group") == "application":
+            from django.db.models import Count, Min
+
+            groups = queryset.values(
+                "application_id",
+                "application__reference",
+                "application__learner__first_name",
+                "application__learner__last_name",
+                "application__admission_period__name",
+            ).annotate(document_count=Count("pk"), oldest_upload=Min("uploaded_at"))
+            ordering = request.query_params.get("ordering", "name")
+            fields = {
+                "name": "application__learner__last_name",
+                "reference": "application__reference",
+                "uploaded": "oldest_upload",
+                "documents": "document_count",
+            }
+            if ordering.removeprefix("-") not in fields:
+                raise ValidationError({"ordering": "Choose a supported sort column."})
+            groups = groups.order_by(
+                ("-" if ordering.startswith("-") else "") + fields[ordering.removeprefix("-")],
+                "application_id",
+            )
+            paginator = PageNumberPagination()
+            paginator.page_size = 20
+            page = paginator.paginate_queryset(groups, request)
+            data = [
+                {
+                    "application": row["application_id"],
+                    "reference": row["application__reference"],
+                    "learner_name": (
+                        f"{row['application__learner__first_name']} "
+                        f"{row['application__learner__last_name']}"
+                    ),
+                    "period_name": row["application__admission_period__name"],
+                    "document_count": row["document_count"],
+                    "uploaded_at": row["oldest_upload"],
+                }
+                for row in page
+            ]
+            return paginator.get_paginated_response(data)
         paginator = PageNumberPagination()
         paginator.page_size = 20
         page = paginator.paginate_queryset(queryset.order_by("uploaded_at", "pk"), request)
@@ -269,7 +386,7 @@ class DocumentViewSet(
     def create(self, request, *args, **kwargs):
         serializer = DocumentUploadSerializer(data=request.data)
         applications = Application.objects.all()
-        if request.user.role == "APPLICANT":
+        if request.user.role == "LEARNER":
             applications = applications.filter(learner__owner=request.user)
         elif not staff_can(request.user, "view_application"):
             raise PermissionDenied("Application access permission is required.")
@@ -287,6 +404,29 @@ class DocumentViewSet(
     @extend_schema(responses={(200, "application/pdf"): OpenApiTypes.BINARY})
     @action(detail=True, methods=["get"])
     def download(self, request, pk=None):
+        return self._serve_pdf(request, pk, attachment=True)
+
+    @extend_schema(responses={(200, "application/pdf"): OpenApiTypes.BINARY})
+    @action(detail=True, methods=["get"])
+    def preview(self, request, pk=None):
+        return self._serve_pdf(request, pk, attachment=False)
+
+    @extend_schema(request=IntegrityUploadSerializer, responses=OpenApiTypes.OBJECT)
+    @action(detail=True, methods=["get", "post"], parser_classes=[MultiPartParser])
+    def integrity(self, request, pk=None):
+        from apps.blockchain_records.services import verify_integrity
+
+        document = self.get_object()
+        result = verify_integrity(document, request.FILES.get("file"))
+        audit(
+            document,
+            "CHECK_DOCUMENT_INTEGRITY",
+            request,
+            {"result": result["status"], "source": result["source"]},
+        )
+        return Response(result)
+
+    def _serve_pdf(self, request, pk, *, attachment):
         document = get_object_or_404(self.get_queryset(), pk=pk)
         try:
             file = document.file.open("rb")
@@ -294,10 +434,10 @@ class DocumentViewSet(
             from rest_framework.exceptions import NotFound
 
             raise NotFound("Document file is unavailable.") from exc
-        audit(document, "DOWNLOAD_DOCUMENT", request)
+        audit(document, "DOWNLOAD_DOCUMENT" if attachment else "PREVIEW_DOCUMENT", request)
         response = FileResponse(
             file,
-            as_attachment=True,
+            as_attachment=attachment,
             filename=document.original_filename,
             content_type="application/pdf",
         )

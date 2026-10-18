@@ -66,7 +66,7 @@ async function mockWorkspace(
           id: "user-1",
           email: "test@example.test",
           role,
-          permissions: role === "APPLICANT" ? [] : registrarPermissions,
+          permissions: role === "LEARNER" ? [] : registrarPermissions,
         },
       });
     if (path.endsWith("/review-queue/")) {
@@ -79,7 +79,22 @@ async function mockWorkspace(
           ? [document]
           : [];
       return route.fulfill({
-        json: { count: results.length, results, next: null, previous: null },
+        json: {
+          count: results.length,
+          results:
+            url.searchParams.get("group") === "application"
+              ? results.map((d) => ({
+                  application: d.application,
+                  reference: d.application_reference,
+                  learner_name: d.learner_name,
+                  period_name: d.period_name,
+                  document_count: 1,
+                  uploaded_at: d.uploaded_at,
+                }))
+              : results,
+          next: null,
+          previous: null,
+        },
       });
     }
     if (path.endsWith("/review/")) {
@@ -178,6 +193,9 @@ test("queue and review dialog support keyboard navigation and accessible semanti
 }) => {
   await mockWorkspace(page);
   await page.goto("/reviews");
+  await page
+    .getByRole("button", { name: "View Documents for Ana Cruz" })
+    .click();
   await expect(
     page.getByRole("heading", { name: "Report Card / SF9" }),
   ).toBeVisible();
@@ -213,6 +231,9 @@ test("registrar requests a correction and sees the recorded decision", async ({
   await mockWorkspace(page);
   await page.goto("/reviews");
   await page
+    .getByRole("button", { name: "View Documents for Ana Cruz" })
+    .click();
+  await page
     .getByRole("button", { name: "Review Report Card / SF9 for Ana Cruz" })
     .click();
   await page.getByRole("radio", { name: /Request a correction/ }).check();
@@ -226,6 +247,9 @@ test("registrar requests a correction and sees the recorded decision", async ({
   await expect(page.getByRole("dialog")).not.toBeVisible();
   await expect(page.locator("#review-queue-heading")).toBeFocused();
   await page.getByRole("button", { name: "Corrections", exact: true }).click();
+  await page
+    .getByRole("button", { name: "View Documents for Ana Cruz" })
+    .click();
   await expect(page.getByText("Please include all pages.")).toBeVisible();
   await expect(
     page.getByText("Correction requested", { exact: true }),
@@ -237,6 +261,9 @@ test("stale review errors retain remarks and keep the dialog open", async ({
 }) => {
   await mockWorkspace(page, "REGISTRAR", { failReview: true });
   await page.goto("/reviews");
+  await page
+    .getByRole("button", { name: "View Documents for Ana Cruz" })
+    .click();
   await page
     .getByRole("button", { name: "Review Report Card / SF9 for Ana Cruz" })
     .click();
@@ -258,9 +285,9 @@ test("administrator has oversight without decision controls on a mobile viewport
   await page.setViewportSize({ width: 390, height: 844 });
   await mockWorkspace(page, "ADMINISTRATOR");
   await page.goto("/reviews");
-  await expect(
-    page.getByText("Administrator oversight", { exact: true }),
-  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "View Documents for Ana Cruz" })
+    .click();
   await expect(
     page.getByRole("heading", { name: "Report Card / SF9" }),
   ).toBeVisible();
@@ -282,7 +309,7 @@ test("administrator has oversight without decision controls on a mobile viewport
 test("applicant can replace only a document flagged for correction", async ({
   page,
 }) => {
-  await mockWorkspace(page, "APPLICANT", { correction: true });
+  await mockWorkspace(page, "LEARNER", { correction: true });
   await page.goto("/applications/application-1");
   await expect(page.getByText("Please include all pages.")).toBeVisible();
   await expect(
@@ -299,6 +326,8 @@ test("applicant can replace only a document flagged for correction", async ({
   await expect(
     page.getByRole("button", { name: "Upload new version" }),
   ).toHaveCount(0);
-  await expect(page.getByText("SUBMITTED", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText(/Upload missing requirements below/),
+  ).toBeVisible();
   await expect(page.getByText("Version 2", { exact: false })).toBeVisible();
 });

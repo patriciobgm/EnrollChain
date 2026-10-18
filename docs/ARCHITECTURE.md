@@ -1,54 +1,49 @@
-# Foundation Architecture
+# Architecture
 
-```text
-React web app
-    |
-    | JSON/HTTPS
-    v
-Django REST API ---- PostgreSQL
-    |
-    +---- private file storage adapter
-    |
-    +---- blockchain provider boundary ---- EVM JSON-RPC
-```
+React19 / TypeScript6 / Tailwind4 → versioned Django/DRF API → PostgreSQL and private file storage. Existing Radix/CVA UI primitives, JWT and Django permissions are retained. Blockchain communication stays in apps.blockchain_records; admissions invokes integrity services without importing Web3. DepEd LIS is represented by a manual domain service, not network calls.
 
-## Boundaries
+## Reused and extended domain
 
-- Django is the authoritative system of record for users, workflows, permissions, audit metadata, and blockchain transaction state.
-- File bytes are handled through a private storage adapter. A later object-storage change must not alter domain models.
-- EVM communication is isolated behind a provider boundary. The application remains operable while blockchain support is disabled or unavailable.
-- The frontend uses the versioned `/api/v1` boundary and does not access databases, files, or wallets directly.
-- On-chain payloads must contain opaque identifiers and cryptographic hashes, never personal data.
+SchoolYear, AdmissionPeriod, Program, Learner, Application, Requirement, RequirementRule, DocumentSubmission, DocumentReview, AuditEvent and BlockchainTransaction are retained. TrackConfiguration uses existing stable track codes to avoid rewriting old records. Program/Application/RequirementRule codes are validated against that configuration; Sections use a foreign key.
 
-## Milestone 1 domain
+Application.status remains DRAFT/SUBMITTED. Application.enrollment_status records the school workflow independently. New models: Section, SectionAssignment, GuidanceInterview, EnrollmentEvent and LisRecord. Learner adds previous-education fields, optional LRN and a unique non-null owner. Sensitive profile fields are absent from application/report/blockchain payloads.
 
-`apps.admissions` owns SchoolYear, AdmissionPeriod, Program, Learner, Application, Requirement, RequirementRule and DocumentSubmission. Grade choices are fixed at 11/12, with database checks; program names remain data. Learner links to an optional applicant owner; Application links to Learner and its period, and records its creator separately. The applicant is derived from learner ownership, so staff creation does not impersonate an applicant.
+Enrollment services enforce role plus Django permission, eligible profile/configuration, verified latest mandatory documents and completed guidance interview. Qualification snapshots document requirements for evidence. Records continue to use live configured requirement checks. Workflow events and audits commit with domain changes. Private guidance remarks are not serialized to learners/advisers.
 
-Database constraints enforce unique LRN, application reference, learner/period pairs, document versions, valid grades/tracks/statuses and date ordering. Reversible schema migrations add the domain and extend role choices. Service functions handle default requirements, applicability, submission and document processing. Writes and their audit events are transactional; upload persistence failures clean up newly stored bytes. PostgreSQL application row locks serialize submission, draft changes and version allocation; submission also locks the learner against concurrent profile edits.
+## Locking and assignment
 
-## Access and storage
+All section assignment/transfer/removal and capacity writes lock the shared SchoolYear row first. Assignment then locks Application and Learner, followed by matching sections in stable ID order. Counts are derived under that lock; choose available sections by count, code, ID. PostgreSQL nullable program joins are excluded from lock targets explicitly. One-to-one application assignment plus learner/year uniqueness provides a second duplicate guard. No available slot leaves PRE_ENROLLED with a NO_AVAILABLE_SECTION event.
 
-All domain endpoints require JWT authentication. Applicants are scoped to owned learners and applications, including nested checklist, upload relations and downloads. Staff roles also require the corresponding Django permission; submission uses `admissions.submit_application`. Guidance and adviser roles gain no automatic record access. Configuration reads require authentication; writes require model permissions. The `setup_admissions_roles` command creates additive groups for explicit assignment by an administrator.
+LIS transitions lock the application. Section changes are blocked once submitted to LIS or confirmed. Manual confirmation requires recorded evidence and produces both LIS_CONFIRMED and OFFICIALLY_ENROLLED events. No network connector or automatic LIS confirmation exists.
 
-Uploads are multipart requests to `/api/v1/documents/`. Validation checks the 30 MiB limit, `.pdf` extension, MIME type, signature and parsing with pypdf, rejecting encrypted/empty/unreadable files. SHA-256 is computed over uploaded bytes. Random private filenames prevent name collisions; each replacement creates another version. The API returns metadata, never a media URL. `/api/v1/documents/{id}/download/` rechecks access and streams an attachment with no-store caching and nosniff. Storage `.url()` raises explicitly. Religion/IP values are confined to authenticated learner responses, excluded from application/document serializers and audit metadata. This domain never calls the blockchain provider.
+## Documents and integrity
 
-Configuration is editable through audited admin/API operations. Workflow admin screens are inspection-only so direct admin writes cannot bypass submission and upload services. Application/profile deletion and document update/deletion endpoints are not exposed. Required rules combine additively; all mandatory applicable requirements must have at least one upload at submission. Current checklist configuration remains live; configuration snapshots are not implemented.
+Private files are parsed PDFs up to30MiB; random stored names, original metadata, SHA-256, upload date and immutable version/review history are retained. Authorized JWT endpoints stream download/preview without public storage URLs. PDF.js renders locally with a bundled worker. Rejected/correction-requested versions can be replaced; verified/qualified records remain locked. Verification recomputes the stored file hash before accepting the Registrar decision.
 
-## Frontend session and API boundaries
+Upload flags identify duplicate bytes without exposing another learner's identity. Integrity checks hash stored/presented bytes and compare against actual confirmed blockchain evidence when available, otherwise the database upload hash with an explicit source label. Unavailable blockchain evidence returns unavailable rather than a success claim.
 
-React retains the foundation page and adds protected profile/application routes. Session tokens are scoped to sessionStorage; a shared refresh request rotates tokens and retries a protected request once. Logout clears identity and private query caches. The API client handles multipart payloads without setting a JSON Content-Type, structured validation errors, 204 responses and authenticated binary downloads. Navigation/action visibility follows role and permission data from `/accounts/me/`; the API remains authoritative.
+EnrollmentIntegrityRegistry supplements the existing DevelopmentAnchor contract. Only the deployer/issuer can register opaque references, hashes and event-type hashes; conflicting duplicates revert and exact duplicates are idempotent. BlockchainTransaction tracks queued/submitted/confirmed/failed delivery. Transaction identity is persisted before receipt waiting; failures remain retryable. Private PDFs and PII never leave the backend for chain storage. Local unlocked signing is restricted to development/client-test mode and chain31337; production signer custody is not configured.
 
-## Development limitations
+## Access and security
 
-Local checks use synthetic fixtures and SQLite; PostgreSQL constraints and row locks are the production-target implementation, but SQLite tests do not exercise concurrent PostgreSQL locking. No worker, blockchain registration, malware scanning or public storage route is introduced. Milestone 2 adds private registrar document-review decisions. Production reverse-proxy upload limits, scanning, TLS, key custody, storage encryption and retention remain deployment work.
+Learner querysets are owner-scoped. Registrar alone reviews documents and qualifies/confirms pre-enrollment. Administrator manages configuration/users/sections/reports/audits. Guidance records interview completion. Adviser reads only their assigned rosters. Server authorization remains authoritative.
 
+School account provisioning requires administrator permissions and password/factor confirmation. Superadministrator may grant individual permissions through a custom audited page; role boundaries remain enforced. Permission/account/security changes revoke sessions. Django /admin/ is not exposed.
 
-## Milestone 2 review boundary
+TOTP secrets are Fernet encrypted, recovery codes hashed/single-use, enrollment expires, OTP replay is blocked, and database-backed attempt windows limit authentication. Access/refresh tokens check security version and password fingerprints. SessionStorage remains the development browser session adapter; production cookie/session policy is an open deployment decision.
 
-DocumentReview holds one immutable decision for a DocumentSubmission. A pending state is derived from the absence of a review; no mutable verification state is duplicated on the file. Queue queries use a correlated EXISTS expression to include only the latest file version per application/requirement and filter to submitted applications. Server pagination limits each page to 20 documents.
+## Reporting and deployment
 
-Review writes require both a REGISTRAR role and `admissions.review_document`, plus document viewing permission at the endpoint. The queue requires REGISTRAR/ADMINISTRATOR and document/review viewing permissions. An administrator superuser does not bypass the registrar-only decision rule. Existing applicant querysets still enforce ownership for private review history.
+One report dataset implementation powers JSON, CSV and ReportLab PDF. Roster fields exclude religion/IP/family details. CSV values are protected against spreadsheet formula interpretation. Report reads/exports are authorized and audited.
 
-Review and upload services lock the same application row, so another decision or replacement cannot race past a prior decision check on PostgreSQL. The one-to-one review constraint also prevents duplicate decisions. Reviews and audit events commit together. A replacement keeps the old file/review intact and receives the next version, with no inherited review. Checklist responses include the latest review status and whether a replacement is permitted.
+compose.client.yml uses isolated PostgreSQL/private-file/runtime volumes, a bundled Nginx frontend, Gunicorn backend, internal Hardhat and an integrity worker. Only localhost:8080 is published. The frontend uses /api/v1 on its current origin for port forwarding. Initial accounts and DEMO configuration are idempotent, with private generated credentials outside Git. The worker reconciles/re-anchors proofs when the ephemeral local Hardhat node restarts, retaining the old transaction identity in audit history. This is a synthetic acceptance environment, not a production blockchain deployment.
 
-The frontend `/reviews` route provides registrar actions and administrator oversight. A Radix dialog supplies modal semantics, focus containment, Escape dismissal and focus return; the app root becomes inert while the dialog is mounted. Radio choices and remarks use native labeled controls. CVA controls reusable button/status variants. Tailwind supplies a restrained page entrance, layered elevations and reduced-motion overrides. TypeScript 6 validates production and browser-test code. Browser checks use Chromium and axe-core; APIs are mocked for frontend tests while Django tests exercise real service/persistence behavior.
+Tests cover APIs/security/domain rules, PostgreSQL concurrency, actual EVM transactions, React behavior, real Django browser workflows and Docker role-page/accessibility checks. See CLIENT_TESTING.md for execution and environment limits.
+
+### Client UI Maintenance
+
+`accounts.0004` adds recipient-scoped notifications; `accounts.0005` converts APPLICANT roles/groups to LEARNER and increments session security versions. The older account-link endpoint and historical database constraint names remain compatible. Notification delivery participates in domain transactions, so all migrations must be applied before running interview/document actions.
+
+The document queue paginates application groups and loads their document rows on demand. Shared sortable headers expose `aria-sort`; sort icons appear on hover or keyboard focus. Staff learner details and section forms reuse the Radix dialog primitive.
+
+Registrar reuses `/accounts/users/` for permitted list/retrieve/create operations, scoped to non-superuser LEARNER and CLASS_ADVISER accounts. Backend role checks reject other target roles and all Registrar account updates. `setup_admissions_roles` grants view/add account permissions. The classification-label migration retains stored RETURNING values; `classification` joins the existing grade filter in enrollment/roster/report queries.

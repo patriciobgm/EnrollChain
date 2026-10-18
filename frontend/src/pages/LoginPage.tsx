@@ -2,21 +2,31 @@ import { LoadingState } from "../components/ui/LoadingState";
 import { useState, type FormEvent } from "react";
 import { Navigate } from "react-router-dom";
 import { ErrorMessage, Field, Page } from "../components/Form";
+import { landingPage } from "../lib/access";
 import { useAuth } from "../lib/auth";
 
 export function LoginPage() {
   const auth = useAuth();
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [factorRequired, setFactorRequired] = useState(false);
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
     setBusy(true);
     setError("");
     try {
-      await auth.login(String(data.get("email")), String(data.get("password")));
+      await auth.login(
+        String(data.get("email")),
+        String(data.get("password")),
+        String(data.get("code") ?? ""),
+      );
     } catch (err) {
-      setError((err as Error).message);
+      if (
+        (err as Error).message.includes("Additional authentication required")
+      ) {
+        setFactorRequired(true);
+      } else setError((err as Error).message);
     } finally {
       setBusy(false);
     }
@@ -27,33 +37,43 @@ export function LoginPage() {
         <LoadingState label="Restoring session…" />
       </Page>
     );
-  if (auth.user) return <Navigate to="/applications" replace />;
+  if (auth.user) return <Navigate to={landingPage(auth.user)} replace />;
   return (
-    <Page title="Sign in to EnrollChain">
-      <form onSubmit={submit} className="panel mx-auto max-w-md space-y-5">
-        <p className="text-muted">
-          Sto. Domingo National Trade School · Senior High School
-        </p>
-        <ErrorMessage error={error || auth.error} />
-        <Field label="Email">
-          <input name="email" type="email" autoComplete="username" required />
-        </Field>
-        <Field label="Password">
-          <input
-            name="password"
-            type="password"
-            autoComplete="current-password"
-            required
-          />
-        </Field>
-        <button className="action" disabled={busy}>
-          {busy ? "Signing in…" : "Sign in"}
-        </button>
-        <p className="text-sm text-muted">
-          Use the account provided by the school. Contact the administrator if
-          you need access.
-        </p>
-      </form>
-    </Page>
+    <section className="mx-auto flex min-h-[70dvh] max-w-md flex-col justify-center px-5 py-10">
+      <div className="rounded-3xl border border-line bg-surface p-7 shadow-panel sm:p-9">
+        <h1 className="mb-7 text-2xl font-bold">Sign In</h1>
+        <form onSubmit={submit} className="space-y-5">
+          <ErrorMessage error={error || auth.error} />
+          <Field label="Email">
+            <input name="email" type="email" autoComplete="username" required />
+          </Field>
+          <Field label="Password">
+            <input
+              name="password"
+              type="password"
+              autoComplete="current-password"
+              required
+            />
+          </Field>
+          {factorRequired && (
+            <Field label="Authentication or recovery code">
+              <input
+                name="code"
+                autoComplete="one-time-code"
+                maxLength={128}
+                required
+                autoFocus
+              />
+            </Field>
+          )}
+          <button className="action" disabled={busy}>
+            {busy ? "Signing in…" : "Sign in"}
+          </button>
+          <p className="text-sm text-muted">
+            Need an account? Contact the school office.
+          </p>
+        </form>
+      </div>
+    </section>
   );
 }

@@ -16,7 +16,7 @@ class Track(models.TextChoices):
 class Classification(models.TextChoices):
     NEW = "NEW", "New"
     TRANSFEREE = "TRANSFEREE", "Transferee"
-    RETURNING = "RETURNING", "Returning"
+    RETURNING = "RETURNING", "Balik-Aral"
 
 
 GRADES = [(11, "Grade 11"), (12, "Grade 12")]
@@ -69,16 +69,14 @@ class AdmissionPeriod(Timestamped):
 
 class Program(Timestamped):
     name = models.CharField(max_length=150)
-    track = models.CharField(max_length=24, choices=Track.choices)
+    code = models.CharField(max_length=40, blank=True)
+    track = models.CharField(max_length=24)
     is_active = models.BooleanField(default=True)
 
     class Meta:
         ordering = ["name"]
         constraints = [
             models.UniqueConstraint(fields=["name", "track"], name="program_name_track"),
-            models.CheckConstraint(
-                condition=models.Q(track__in=Track.values), name="program_track"
-            ),
         ]
 
     def __str__(self):
@@ -97,6 +95,8 @@ class Learner(Timestamped):
     lrn = models.CharField(
         max_length=12,
         unique=True,
+        null=True,
+        blank=True,
         validators=[RegexValidator(r"^[0-9]{12}$", "LRN must contain exactly 12 digits.")],
     )
     first_name = models.CharField(max_length=100)
@@ -114,9 +114,18 @@ class Learner(Timestamped):
     guardian_name = models.CharField(max_length=200, blank=True)
     previous_school = models.CharField(max_length=200, blank=True)
     previous_section = models.CharField(max_length=100, blank=True)
+    last_grade_completed = models.PositiveSmallIntegerField(null=True, blank=True)
+    school_year_completed = models.CharField(max_length=30, blank=True)
 
     class Meta:
         ordering = ["last_name", "first_name"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["owner"],
+                condition=models.Q(owner__isnull=False),
+                name="one_profile_per_applicant",
+            )
+        ]
 
     def __str__(self):
         return f"{self.first_name} {self.last_name}"
@@ -152,26 +161,56 @@ class Application(Timestamped):
     learner = models.ForeignKey(Learner, on_delete=models.PROTECT, related_name="applications")
     admission_period = models.ForeignKey(AdmissionPeriod, on_delete=models.PROTECT)
     grade_level = models.PositiveSmallIntegerField(choices=GRADES)
-    track = models.CharField(max_length=24, choices=Track.choices)
+    track = models.CharField(max_length=24)
     program = models.ForeignKey(Program, null=True, blank=True, on_delete=models.PROTECT)
     classification = models.CharField(max_length=12, choices=Classification.choices)
     source = models.CharField(max_length=10, choices=Source.choices, default=Source.ONLINE)
     status = models.CharField(max_length=10, choices=Status.choices, default=Status.DRAFT)
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
     submitted_at = models.DateTimeField(null=True, blank=True)
+    enrollment_status = models.CharField(
+        max_length=32,
+        default="DRAFT",
+        choices=[
+            (value, value.replace("_", " ").title())
+            for value in [
+                "DRAFT",
+                "SUBMITTED",
+                "FOR_DOCUMENT_VERIFICATION",
+                "FOR_EVALUATION",
+                "QUALIFIED",
+                "NOT_QUALIFIED",
+                "PRE_ENROLLED",
+                "SECTION_ASSIGNED",
+                "FOR_LIS_REGISTRATION",
+                "LIS_CONFIRMED",
+                "OFFICIALLY_ENROLLED",
+                "REJECTED",
+                "FOR_RESUBMISSION",
+            ]
+        ],
+    )
+    qualification_snapshot = models.JSONField(default=dict, blank=True)
+    pre_enrolled_at = models.DateTimeField(null=True, blank=True)
+    officially_enrolled_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ["-created_at"]
-        permissions = [("submit_application", "Can submit an application")]
+        permissions = [
+            ("submit_application", "Can submit an application"),
+            ("evaluate_application", "Can evaluate early enrollment"),
+            ("confirm_preenrollment", "Can confirm pre-enrollment"),
+            ("manage_sections", "Can assign or transfer sections"),
+            ("manage_lis", "Can record manual LIS reconciliation"),
+            ("view_enrollment_reports", "Can view and export enrollment reports"),
+            ("complete_interview", "Can complete guidance interviews"),
+        ]
         constraints = [
             models.UniqueConstraint(
                 fields=["learner", "admission_period"], name="one_learner_application_per_period"
             ),
             models.CheckConstraint(
                 condition=models.Q(grade_level__in=[11, 12]), name="application_shs_grade"
-            ),
-            models.CheckConstraint(
-                condition=models.Q(track__in=Track.values), name="application_track"
             ),
             models.CheckConstraint(
                 condition=models.Q(classification__in=Classification.values),
@@ -206,7 +245,7 @@ class RequirementRule(Timestamped):
     admission_period = models.ForeignKey(AdmissionPeriod, on_delete=models.PROTECT)
     classification = models.CharField(max_length=12, choices=Classification.choices)
     grade_level = models.PositiveSmallIntegerField(choices=GRADES, null=True, blank=True)
-    track = models.CharField(max_length=24, choices=Track.choices, blank=True)
+    track = models.CharField(max_length=24, blank=True)
     program = models.ForeignKey(Program, null=True, blank=True, on_delete=models.PROTECT)
     is_required = models.BooleanField(default=True)
 
@@ -237,6 +276,7 @@ class DocumentSubmission(models.Model):
     sha256 = models.CharField(max_length=64)
     version = models.PositiveIntegerField()
     uploaded_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    validation_flags = models.JSONField(default=list, blank=True)
     uploaded_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -290,3 +330,13 @@ class DocumentReview(models.Model):
 
     def delete(self, *args, **kwargs):
         raise TypeError("Document reviews are immutable.")
+
+
+from .enrollment_models import (  # noqa: E402,F401
+    EnrollmentEvent,
+    GuidanceInterview,
+    LisRecord,
+    Section,
+    SectionAssignment,
+    TrackConfiguration,
+)

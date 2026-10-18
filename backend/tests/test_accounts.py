@@ -9,7 +9,7 @@ def test_email_is_the_login_identifier():
 
     assert user.username is None
     assert user.email == "student@example.com"
-    assert user.role == UserRole.APPLICANT
+    assert user.role == UserRole.LEARNER
     assert user.check_password("safe-test-password")
 
 

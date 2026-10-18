@@ -1,49 +1,23 @@
-# Scope Baseline — Milestones 1 and 2
+# Current scope — early enrollment client acceptance release
 
-## Institution and authority
+**EnrollChain = early enrollment + preliminary sectioning + document verification + reporting. DepEd LIS = official enrollment record.**
 
-Sto. Domingo National Trade School Senior High School only, Grades 11 and 12. This baseline records the user's explicit milestone confirmation, superseding the initial foundation-only deferral of profiles, applications and configurable requirements. Client documents supply requirements; broader MVP features in them remain outside this milestone.
+This release extends Milestones1–2 and the readiness work into the client-confirmed workflow. It preserves backend/, frontend/ and blockchain/ and the existing intake records. Earlier deferrals of sectioning, interviews, reports and manual LIS processing are superseded by the latest confirmation.
 
-## Delivered scope
+Included:
 
-- Preserve backend/, frontend/ and blockchain/ foundation, health endpoints, JWT, Django permissions, private-storage adapter and audit infrastructure.
-- School years, admission periods and configurable programs; only ACADEMIC and TECHNICAL_PROFESSIONAL tracks. No hard-coded strands.
-- Five roles: APPLICANT, REGISTRAR, ADMINISTRATOR, GUIDANCE_OFFICER and CLASS_ADVISER; explicit model/action permissions for staff.
-- Private learner profiles with all confirmed fields and calculated age.
-- Applicant-owned and registrar walk-in applications, unique references, database uniqueness per learner/period, DRAFT → SUBMITTED, timestamps and audit events.
-- Configurable requirement catalog/rules scoped by period, classification, grade, track and program, with confirmed initial NEW/TRANSFEREE defaults. No default documents for RETURNING.
-- Private PDF submissions up to 30 MB, content validation, SHA-256, metadata, version history, authorized downloads and upload audit events. No document blockchain registration.
-- DRF API, serializers, permissions, viewsets, OpenAPI, reversible schema migrations, audited services, configuration admin and read-only workflow admin inspection.
-- Responsive React login/session handling, role-aware navigation, learner forms, draft creation/editing, period/program choices, checklist, PDF upload/download/history and application list/status. Loading, validation, empty and error states.
-- Backend and frontend tests, strict schema validation, lint/build checks, local Solidity compilation and Compose configuration validation.
+- School year/period, configurable tracks/programs and requirement rules; SHS Grades11/12.
+- School-provisioned users, one learner profile, account linking, five role-specific workspaces and custom system administration. Django technical admin is not routed.
+- Private PDF upload/preview/download, version history, registrar-only review/rejection/correction, validation/duplicate-content flags and integrity checks.
+- Guidance interview completion, Registrar qualification/pre-enrollment, deterministic capacity-safe automatic sections, manual transfer/removal, adviser-scoped rosters.
+- Separate intake/enrollment/LIS states; manual readiness/submission/confirmation with evidence. Official enrollment cannot result from pre-enrollment alone.
+- Twelve filtered report datasets, CSV/PDF export, enrollment dashboard metrics and section utilization.
+- Real local EVM registry, durable transaction metadata, confirmation/retry monitoring and hash comparison. No on-chain PII or claim of original credential genuineness.
+- MFA/security controls, permission-scoped administration, audit viewer, blue school branding, supplied school façade/seal and consolidated navigation.
+- Isolated Docker client test stack with same-origin web/API access through one published port, synthetic accounts/configuration and private setup instructions.
 
-Academic configuration is managed through Django admin or the authenticated configuration API. No separate React configuration editor is claimed. School-provisioned accounts use the existing account administration; public signup/reset is outside this milestone.
+See [confirmed requirements and open questions](ASSUMPTIONS.md), [architecture](ARCHITECTURE.md), [client testing](CLIENT_TESTING.md), and [implementation delivery](EARLY_ENROLLMENT_IMPLEMENTATION.md).
 
-## Confirmed Milestone 2 — document review and correction
+Not claimed: direct LIS connectivity; autonomous credential authenticity detection; production blockchain custody/permanence; complete production operational/security readiness. Client acceptance testing is the next validation stage.
 
-On 2026-09-12 the user authorized continued development and confirmed:
-
-- Only registrars make document verification, rejection and resubmission decisions. Administrators have oversight access; Guidance Officer and Class Adviser receive no review powers.
-- Applicants may replace only documents explicitly flagged for resubmission while their submitted application stays locked.
-
-Delivered scope: a paginated searchable queue of the latest document versions from submitted applications; VERIFIED, REJECTED and RESUBMISSION_REQUESTED decisions; required explanatory remarks for rejection/correction; an immutable review per version; retained previous versions and audit events; targeted replacement uploads returning to awaiting review; private applicant feedback/history; administrator oversight views; explicit Django review permissions; reversible migration; and frontend review screens with React 19, TypeScript 6, Tailwind v4, Radix/shadcn-style primitives and CVA variants.
-
-This replaces Milestone 1's blanket prohibition on uploads after submission only for flagged correction requests. It does not change application or learner editing rules, or introduce admission/registration decisions. Document VERIFIED is a registrar decision, not blockchain registration or proof of authenticity.
-
-## Still deferred
-
-- Eligibility rules and automatic qualification
-- Final admission decisions, interviews, approval sequence and registration/enrollment status beyond submitted application receipt
-- Automatic section assignment and capacity algorithms
-- LIS integration and manual confirmation behavior
-- Class Adviser verification responsibilities beyond the confirmed registrar-only document review
-- Legacy-record import
-- Late-registration authorization (recognized source value, creation/submission blocked)
-- Email and other notification delivery
-- QR/public credential verification
-- Production blockchain contract, network, wallet and recovery configuration
-- Reports beyond basic development views
-- Production hosting, real student data, retention and consent arrangements
-- Grade management, payments, schedules and other student-information-system functionality
-
-Implementation assumptions and unresolved questions are listed separately in [ASSUMPTIONS.md](ASSUMPTIONS.md). No admission result, official enrollment, credential verification or blockchain registration is implied by SUBMITTED.
+Registrar account provisioning includes Learner and Teacher/Class Adviser creation, subject to Django permissions and password/MFA confirmation. Early Enrollment filters combine Grade 11/12 with New/Balik-Aral/Transferee. Existing RETURNING records display as Balik-Aral.

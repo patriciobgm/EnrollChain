@@ -5,32 +5,32 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.exceptions import TokenError
-from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
-from rest_framework_simplejwt.views import TokenObtainPairView
 
 from apps.audit.services import record_audit_event
 
-from .serializers import CurrentUserSerializer, LogoutSerializer
+from .security import authenticate_credentials, tokens_for
+from .serializers import (
+    CurrentUserSerializer,
+    LoginSerializer,
+    LogoutSerializer,
+    TokenPairSerializer,
+)
 
 
-class AuditedTokenObtainPairView(TokenObtainPairView):
-    serializer_class = TokenObtainPairSerializer
+class AuditedTokenObtainPairView(APIView):
+    def get_authenticate_header(self, request):
+        return 'Bearer realm="api"'
 
-    def post(self, request, *args, **kwargs):
-        response = super().post(request, *args, **kwargs)
-        if response.status_code == status.HTTP_200_OK:
-            from .models import User
+    authentication_classes = []
+    permission_classes = []
 
-            user = User.objects.filter(email__iexact=request.data.get("email", "")).first()
-            record_audit_event(
-                action="LOGIN",
-                entity="User",
-                entity_id=str(user.pk) if user else "",
-                user=user,
-                request=request,
-            )
-        return response
+    @extend_schema(request=LoginSerializer, responses=TokenPairSerializer)
+    def post(self, request):
+        serializer = LoginSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = authenticate_credentials(request, **serializer.validated_data)
+        return Response(tokens_for(user))
 
 
 class LogoutView(APIView):

@@ -1,0 +1,31 @@
+FROM node:24-bookworm-slim AS chain-build
+WORKDIR /app/blockchain
+COPY blockchain/package*.json ./
+RUN npm ci
+COPY blockchain/contracts ./contracts
+COPY blockchain/hardhat.config.ts blockchain/tsconfig.json ./
+RUN npm run compile
+FROM chain-build AS blockchain
+CMD ["npm", "run", "node"]
+FROM python:3.13-slim AS backend
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+WORKDIR /app/backend
+COPY backend/requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+COPY backend/ ./
+COPY --from=chain-build /app/blockchain/artifacts /app/blockchain/artifacts
+COPY deploy/client-entrypoint.sh /app/client-entrypoint.sh
+RUN groupadd --gid 10001 enrollchain && useradd --uid 10001 --gid enrollchain enrollchain && mkdir -p /app/runtime /app/private-media && chown -R enrollchain:enrollchain /app/runtime /app/private-media
+USER enrollchain
+ENTRYPOINT ["sh", "/app/client-entrypoint.sh"]
+FROM node:24-alpine AS web-build
+WORKDIR /app/frontend
+COPY frontend/package*.json ./
+RUN npm ci
+COPY frontend/ ./
+ENV VITE_API_BASE_URL=/api/v1
+RUN npm run build
+FROM nginx:1.28-alpine AS web
+COPY deploy/nginx-client.conf /etc/nginx/conf.d/default.conf
+COPY --from=web-build /app/frontend/dist /usr/share/nginx/html
+EXPOSE 8080

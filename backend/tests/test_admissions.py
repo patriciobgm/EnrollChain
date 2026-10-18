@@ -95,6 +95,9 @@ def application_data(learner, period, **extra):
             admission_period=period.pk,
             grade_level=11,
             track="ACADEMIC",
+            program=Program.objects.get_or_create(
+                name="Synthetic academic program", track="ACADEMIC"
+            )[0].pk,
             classification="NEW",
             source="ONLINE",
         )
@@ -192,6 +195,9 @@ def test_application_unique_and_audited(setup):
             admission_period=period,
             grade_level=11,
             track="ACADEMIC",
+            program_id=Program.objects.get_or_create(
+                name="Synthetic academic program", track="ACADEMIC"
+            )[0].pk,
             classification="NEW",
             created_by=user,
         )
@@ -376,16 +382,15 @@ def test_encrypted_pdf_rejected(setup):
     assert response.status_code == 400
 
 
-def test_submit_requires_uploads_then_locks_application(setup):
+def test_early_submit_allows_later_uploads_and_locks_choices(setup):
     client, _, _, learner, _ = setup
     app = create_application(setup)
     url = f"/api/v1/applications/{app['id']}/"
-    assert client.post(url + "submit/").status_code == 400
+    response = client.post(url + "submit/")
+    assert response.status_code == 200
     for req in Requirement.objects.all():
         assert upload(client, app["id"], req.pk).status_code == 201
     assert client.patch(url, {"classification": "RETURNING"}).status_code == 400
-    response = client.post(url + "submit/")
-    assert response.status_code == 200, response.data
     assert response.data["status"] == "SUBMITTED" and response.data["submitted_at"]
     assert client.post(url + "submit/").status_code == 400
     assert client.patch(url, {"grade_level": 12}).status_code == 400
@@ -474,7 +479,7 @@ def test_staff_document_download_requires_permission(setup):
     grant(staff, "view_documentsubmission")
     response = client.get(url)
     assert response.status_code == 200
-    response.close()
+    b"".join(response.streaming_content)
     assert client.patch(f"/api/v1/documents/{document['id']}/", {"version": 5}).status_code == 405
     grant(staff, "change_documentsubmission")
     assert client.patch(f"/api/v1/documents/{document['id']}/", {"version": 5}).status_code == 405
@@ -513,8 +518,14 @@ def test_role_setup_is_additive_and_idempotent(setup):
         .permissions.filter(codename="submit_application")
         .exists()
     )
-    assert not Group.objects.get(name="GUIDANCE_OFFICER").permissions.exists()
-    assert not Group.objects.get(name="CLASS_ADVISER").permissions.exists()
+    assert (
+        Group.objects.get(name="GUIDANCE_OFFICER")
+        .permissions.filter(codename="complete_interview")
+        .exists()
+    )
+    assert (
+        Group.objects.get(name="CLASS_ADVISER").permissions.filter(codename="view_section").exists()
+    )
 
 
 def test_workflow_admin_is_inspection_only(setup):

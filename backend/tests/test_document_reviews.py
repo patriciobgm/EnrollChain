@@ -50,7 +50,7 @@ def test_registrar_verification_and_audit(submitted):
 
 
 @pytest.mark.parametrize(
-    "role", ["APPLICANT", "ADMINISTRATOR", "GUIDANCE_OFFICER", "CLASS_ADVISER"]
+    "role", ["LEARNER", "ADMINISTRATOR", "GUIDANCE_OFFICER", "CLASS_ADVISER"]
 )
 def test_only_registrar_can_decide_even_with_permissions(submitted, role):
     _, client, _, _, documents = submitted
@@ -120,12 +120,12 @@ def test_resubmission_is_targeted_and_preserves_version_history(submitted):
     assert next(row for row in history if row["id"] == original["id"])["is_latest"] is False
 
 
-def test_rejected_and_verified_documents_cannot_be_replaced(submitted):
+def test_rejected_documents_allow_replacement_and_verified_stay_locked(submitted):
     client, staff, _, app, documents = submitted
     assert decide(staff, documents[0], "REJECTED", "Incorrect record.").status_code == 200
     assert decide(staff, documents[1], "VERIFIED").status_code == 200
-    for document in documents[:2]:
-        assert upload(client, app["id"], document["requirement"]).status_code == 400
+    assert upload(client, app["id"], documents[0]["requirement"]).status_code == 201
+    assert upload(client, app["id"], documents[1]["requirement"]).status_code == 400
 
 
 def test_cannot_review_twice_or_overwrite_review(submitted):

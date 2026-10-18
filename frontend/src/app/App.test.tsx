@@ -32,11 +32,15 @@ describe("App", () => {
     );
 
     expect(
-      screen.getByRole("heading", { name: /secure admissions/i }),
+      screen.getByRole("heading", { name: /Your next chapter starts here/i }),
     ).toBeInTheDocument();
-    expect(await screen.findByText("Foundation available")).toBeInTheDocument();
     expect(
-      screen.getByText(/client-dependent modules remain deferred/i),
+      screen.getByRole("img", {
+        name: /Façade of Sto. Domingo National Trade School/i,
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: /Start early enrollment/i }),
     ).toBeInTheDocument();
   });
 });

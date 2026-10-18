@@ -17,6 +17,8 @@ class AdmissionsPermission(BasePermission):
             return False
         if getattr(view, "configuration", False) and request.method in {"GET", "HEAD", "OPTIONS"}:
             return True
+        if view.action == "link_applicant":
+            return user.role in {"REGISTRAR", "ADMINISTRATOR"} and staff_can(user, "change_learner")
         if view.action in {"review", "review_queue"}:
             if view.action == "review":
                 return (
@@ -29,7 +31,7 @@ class AdmissionsPermission(BasePermission):
                 and staff_can(user, "view_documentsubmission")
                 and staff_can(user, "view_documentreview")
             )
-        if not getattr(view, "configuration", False) and user.role == "APPLICANT":
+        if not getattr(view, "configuration", False) and user.role == "LEARNER":
             return True  # Querysets and serializers enforce ownership on every object/relation.
         verb = {
             "list": "view",

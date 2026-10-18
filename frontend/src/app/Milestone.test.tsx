@@ -14,7 +14,7 @@ import { setTokens } from "../lib/api";
 const user = {
   id: "user-1",
   email: "learner@example.com",
-  role: "APPLICANT",
+  role: "LEARNER",
   permissions: [],
 };
 const learner = {
@@ -23,6 +23,9 @@ const learner = {
   last_name: "Cruz",
   lrn: "123456789012",
   age: 18,
+  previous_school: "Test",
+  last_grade_completed: 10,
+  school_year_completed: "2025-2026",
 };
 const application = {
   id: "app-1",
@@ -34,6 +37,19 @@ const application = {
   classification: "NEW",
   source: "ONLINE",
   status: "DRAFT",
+  enrollment_status: "DRAFT",
+  track_name: "Academic",
+  eligibility: {
+    ready: false,
+    profile_missing: [],
+    pending_requirements: [],
+    guidance_completed: false,
+    track_and_program_valid: true,
+  },
+  section_assignment: null,
+  lis_record: null,
+  guidance_completed: false,
+  enrollment_events: [],
   created_at: "2026-09-11T00:00:00Z",
   submitted_at: null,
 };
@@ -74,6 +90,7 @@ function response(data: unknown, status = 200) {
   });
 }
 function mount(path: string, authenticated = true) {
+  vi.spyOn(window, "scrollTo").mockImplementation(() => {});
   if (authenticated) setTokens({ access: "access", refresh: "refresh" });
   const cache = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -98,6 +115,16 @@ function mockApi(
       if (custom) return custom;
       const defaults: Record<string, unknown> = {
         "/accounts/me/": user,
+        "/accounts/dashboard/": {
+          learners: 1,
+          applications: 1,
+          submitted: 0,
+          documents: 0,
+          reviews: 0,
+          users: null,
+          audit_events: null,
+          active_periods: 1,
+        },
         "/learners/": [learner],
         "/applications/": [application],
         "/applications/app-1/": application,
@@ -106,6 +133,35 @@ function mockApi(
         "/admission-periods/": periods,
         "/programs/": programs,
       };
+      if (path === "/enrollments/?pending=true")
+        return response({ count: 0, next: null, previous: null, results: [] });
+      if (path.startsWith("/enrollments/?"))
+        return response({
+          count: 1,
+          next: null,
+          previous: null,
+          results: [application],
+        });
+      if (path === "/enrollments/app-1/") return response(application);
+      if (path === "/enrollment-metrics/")
+        return response({
+          total: 0,
+          categories: {},
+          statuses: {},
+          unassigned: 0,
+          lis: {},
+          tracks: {},
+          sections: [],
+        });
+      if (path === "/tracks/")
+        return response([
+          { code: "ACADEMIC", name: "Academic", active: true },
+          {
+            code: "TECHNICAL_PROFESSIONAL",
+            name: "Technical Professional",
+            active: true,
+          },
+        ]);
       if (!(path in defaults)) throw new Error(`Unexpected request ${path}`);
       return response(defaults[path]);
     });
@@ -126,7 +182,7 @@ describe("Milestone 1", () => {
     );
     mount("/applications", false);
     expect(
-      await screen.findByRole("heading", { name: "Sign in to EnrollChain" }),
+      await screen.findByRole("heading", { name: "Sign In" }),
     ).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Email"), {
       target: { value: user.email },
@@ -153,8 +209,12 @@ describe("Milestone 1", () => {
       target: { value: "password" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    expect(
+      (await screen.findAllByRole("link", { name: /My Enrollment/i }))[0],
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole("link", { name: /My Enrollment/i })[0]);
     expect(await screen.findByText("APP-123")).toBeInTheDocument();
-    expect(screen.getByText("DRAFT")).toBeInTheDocument();
+    expect(screen.getAllByText("Draft")[0]).toBeInTheDocument();
     const current = fetch.mock.calls.find(([path]) =>
       String(path).endsWith("/accounts/me/"),
     );
@@ -191,7 +251,12 @@ describe("Milestone 1", () => {
     mockApi((path) =>
       path === "/accounts/me/"
         ? response({ ...user, role: "CLASS_ADVISER" })
-        : undefined,
+        : path.startsWith("/enrollments/?")
+          ? response(
+              { detail: "Application access has not been assigned" },
+              403,
+            )
+          : undefined,
     );
     mount("/applications");
     expect(
@@ -201,27 +266,206 @@ describe("Milestone 1", () => {
       screen.queryByRole("link", { name: "Learner profiles" }),
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByRole("link", { name: "New application" }),
+      screen.queryByRole("link", { name: "New Application" }),
     ).not.toBeInTheDocument();
+  });
+  it("hides new application and guards its direct URL while an application is pending", async () => {
+    mockApi((path) =>
+      path === "/enrollments/?pending=true"
+        ? response({
+            count: 1,
+            next: null,
+            previous: null,
+            results: [application],
+          })
+        : undefined,
+    );
+    mount("/applications");
+    await screen.findByRole("link", { name: "View application" });
+    expect(
+      screen.queryByRole("link", { name: "New Application" }),
+    ).not.toBeInTheDocument();
+    cleanup();
+    mount("/applications/new");
+    expect(
+      await screen.findByRole("link", { name: "Continue application" }),
+    ).toHaveAttribute("href", "/applications/app-1");
+    expect(
+      screen.queryByRole("button", { name: "Save draft" }),
+    ).not.toBeInTheDocument();
+  });
+  it("replaces the applicant profile with an edit screen and restores it on cancel", async () => {
+    mockApi();
+    mount("/learners");
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Edit profile" }),
+    );
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
+      "Edit profile",
+    );
+    expect(
+      screen.queryByRole("button", { name: "Edit profile" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
+      "My Profile",
+    );
+    expect(screen.queryByLabelText("First name")).not.toBeInTheDocument();
+  });
+  it("paginates staff learner records and opens one profile at a time", async () => {
+    const fetchMock = mockApi((path) => {
+      if (path === "/accounts/me/")
+        return response({
+          ...user,
+          role: "REGISTRAR",
+          permissions: ["admissions.view_learner", "admissions.change_learner"],
+        });
+      if (path.startsWith("/learners/?")) {
+        const second = path.includes("page=2");
+        return response({
+          count: 21,
+          previous: second ? "page=1" : null,
+          next: second ? null : "page=2",
+          results: [
+            {
+              ...learner,
+              id: second ? "learner-21" : learner.id,
+              first_name: second ? "Bea" : "Ana",
+              religion: "Private detail",
+            },
+          ],
+        });
+      }
+    });
+    mount("/learners");
+    await screen.findByRole("button", { name: "View Ana Cruz" });
+    expect(screen.queryByText("Private detail")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "View Bea Cruz" }),
+    );
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+    expect(screen.getByText("Private detail")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Back to records" }));
+    expect(screen.getByRole("table")).toBeInTheDocument();
+    expect(
+      fetchMock.mock.calls.some(([url]) => String(url).includes("page=2")),
+    ).toBe(true);
+  });
+  it("shows applicant enrollment history without staff filters", async () => {
+    mockApi((path) =>
+      path.includes("archive=true")
+        ? response({
+            count: 1,
+            next: null,
+            previous: null,
+            results: [
+              {
+                ...application,
+                id: "past-1",
+                reference: "APP-PAST",
+                period_name: "Previous School Year",
+                enrollment_status: "OFFICIALLY_ENROLLED",
+              },
+            ],
+          })
+        : undefined,
+    );
+    mount("/applications");
+    await screen.findByRole("button", { name: "Enrollment History" });
+    expect(screen.queryByLabelText("Enrollment stage")).not.toBeInTheDocument();
+    expect(
+      screen.queryByLabelText("Search learner / reference"),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Enrollment History" }));
+    expect(await screen.findByText("APP-PAST")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Officially Enrolled" }),
+    ).toBeInTheDocument();
+  });
+  it("marks notifications read and clears the notification queue", async () => {
+    let unread = 1;
+    let count = 1;
+    mockApi((path, init) => {
+      if (path === "/accounts/notifications/count/")
+        return response({ unread });
+      if (path.startsWith("/accounts/notifications/?"))
+        return response({
+          count,
+          next: null,
+          previous: null,
+          results: count
+            ? [
+                {
+                  id: "notice-1",
+                  title: "Document Verified",
+                  link: "/applications/app-1",
+                  created_at: "2026-09-13T00:00:00Z",
+                  read_at: unread ? null : "2026-09-13T00:01:00Z",
+                },
+              ]
+            : [],
+        });
+      if (
+        path === "/accounts/notifications/read-all/" &&
+        init?.method === "POST"
+      ) {
+        unread = 0;
+        return response({ updated: 1 });
+      }
+      if (
+        path === "/accounts/notifications/clear/" &&
+        init?.method === "DELETE"
+      ) {
+        count = 0;
+        return response({ deleted: 1 });
+      }
+    });
+    mount("/applications");
+    fireEvent.click(
+      (
+        await screen.findAllByRole("button", {
+          name: "Notifications, 1 unread",
+        })
+      )[0],
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Mark All Read" }),
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Mark All Read" }),
+      ).toBeDisabled(),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Delete All Notifications" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Delete All" }));
+    expect(await screen.findByText("No notifications.")).toBeInTheDocument();
   });
   it("submits profile fields and preserves API validation errors", async () => {
     mockApi((path, init) =>
       path === "/learners/" && init?.method === "POST"
         ? response({ lrn: ["A learner with this LRN already exists."] }, 400)
-        : undefined,
+        : path === "/learners/"
+          ? response([])
+          : undefined,
     );
     mount("/learners");
     fireEvent.click(
-      await screen.findByRole("button", { name: "Add learner profile" }),
+      await screen.findByRole("button", { name: "Complete my profile" }),
     );
     for (const [label, value] of [
-      ["LRN", "123456789012"],
+      ["LRN (if available)", "123456789012"],
       ["First name", "Ana"],
       ["Last name", "Cruz"],
       ["Birthdate", "2008-01-05"],
       ["Sex", "Female"],
       ["Address", "Test address"],
       ["Contact number", "09123456789"],
+      ["Previous school", "Test school"],
+      ["Last grade completed", "10"],
+      ["School year completed", "2025-2026"],
     ])
       fireEvent.change(screen.getByLabelText(label), { target: { value } });
     fireEvent.click(screen.getByRole("button", { name: "Save profile" }));
@@ -229,6 +473,61 @@ describe("Milestone 1", () => {
       "LRN already exists",
     );
   });
+  it("lets registrars open account creation with only learner and teacher choices", async () => {
+    mockApi((path) => {
+      if (path === "/accounts/me/")
+        return response({
+          ...user,
+          role: "REGISTRAR",
+          permissions: ["accounts.view_user", "accounts.add_user"],
+        });
+      if (path.startsWith("/accounts/users/?"))
+        return response({ count: 0, results: [], next: null, previous: null });
+    });
+    mount("/administration/users");
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Create account" }),
+    );
+    const role = screen.getByLabelText("Role");
+    expect(
+      Array.from((role as HTMLSelectElement).options).map(
+        (option) => option.value,
+      ),
+    ).toEqual(["LEARNER", "CLASS_ADVISER"]);
+    expect(
+      screen.getByRole("option", { name: "Teacher / Class Adviser" }),
+    ).toBeInTheDocument();
+  });
+
+  it("filters staff enrollment records by grade and Balik-Aral classification", async () => {
+    const fetch = mockApi((path) =>
+      path === "/accounts/me/"
+        ? response({
+            ...user,
+            role: "REGISTRAR",
+            permissions: ["admissions.view_application"],
+          })
+        : undefined,
+    );
+    mount("/applications");
+    fireEvent.change(await screen.findByLabelText("Grade Level"), {
+      target: { value: "12" },
+    });
+    fireEvent.change(screen.getByLabelText("Learner Classification"), {
+      target: { value: "RETURNING" },
+    });
+    await waitFor(() =>
+      expect(
+        fetch.mock.calls.some(([url]) =>
+          String(url).includes("grade_level=12&classification=RETURNING"),
+        ),
+      ).toBe(true),
+    );
+    expect(
+      screen.getByRole("option", { name: "Balik-Aral" }),
+    ).toBeInTheDocument();
+  });
+
   it("filters configurable programs by track and creates a draft", async () => {
     let body: Record<string, unknown> | undefined;
     mockApi((path, init) => {
@@ -239,6 +538,7 @@ describe("Milestone 1", () => {
     });
     mount("/applications/new");
     const track = await screen.findByLabelText("Track");
+    fireEvent.change(track, { target: { value: "ACADEMIC" } });
     expect(
       screen.getByRole("option", { name: "Configured academic program" }),
     ).toBeInTheDocument();
@@ -246,14 +546,15 @@ describe("Milestone 1", () => {
       screen.queryByRole("option", { name: "Configured technical program" }),
     ).not.toBeInTheDocument();
     fireEvent.change(track, { target: { value: "TECHNICAL_PROFESSIONAL" } });
-    fireEvent.change(screen.getByLabelText("Learner"), {
-      target: { value: learner.id },
-    });
+    expect(
+      screen.queryByRole("combobox", { name: "Learner" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("Ana Cruz")).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Admission period"), {
       target: { value: "1" },
     });
     fireEvent.change(
-      screen.getByLabelText("Program / specialization (optional)"),
+      screen.getByLabelText("Cluster / strand / specialization"),
       { target: { value: "2" } },
     );
     fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
@@ -266,6 +567,24 @@ describe("Milestone 1", () => {
       source: "ONLINE",
     });
   });
+  it("blocks learner draft creation when the profile response is ambiguous", async () => {
+    mockApi((path) =>
+      path === "/learners/"
+        ? response([learner, { ...learner, id: "other-learner" }])
+        : undefined,
+    );
+    mount("/applications/new");
+    expect(
+      await screen.findByText(
+        "Your account has conflicting profiles. Contact the Registrar.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save draft" })).toBeDisabled();
+    expect(
+      screen.queryByRole("combobox", { name: "Learner" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("validates PDFs, uploads multipart data, and enables submission", async () => {
     let uploaded = false;
     let submitted = false;
@@ -293,7 +612,7 @@ describe("Milestone 1", () => {
     const input = await screen.findByLabelText(/PDF for Report Card/);
     expect(
       screen.getByRole("button", { name: "Submit application" }),
-    ).toBeDisabled();
+    ).toBeEnabled();
     let chosen = new File(["bad"], "bad.txt", { type: "text/plain" });
     fireEvent.change(input, { target: { files: [chosen] } });
     fireEvent.submit(input.closest("form")!);
@@ -306,15 +625,13 @@ describe("Milestone 1", () => {
     chosen = new File(["%PDF-test"], "report.pdf", { type: "application/pdf" });
     fireEvent.change(input, { target: { files: [chosen] } });
     fireEvent.submit(input.closest("form")!);
-    await waitFor(() =>
-      expect(
-        screen.getByRole("button", { name: "Submit application" }),
-      ).toBeEnabled(),
-    );
+    await waitFor(() => expect(uploaded).toBe(true));
     expect((multipart as FormData | null)?.get("application")).toBe("app-1");
     expect((multipart as FormData | null)?.get("requirement")).toBe("1");
     fireEvent.click(screen.getByRole("button", { name: "Submit application" }));
-    expect(await screen.findByText("SUBMITTED")).toBeInTheDocument();
+    expect(
+      await screen.findByText(/Upload missing requirements below/),
+    ).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Upload new version" }),
     ).not.toBeInTheDocument();
@@ -329,7 +646,7 @@ describe("Milestone 1", () => {
     await screen.findByText("APP-123");
     fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
     expect(
-      await screen.findByRole("heading", { name: "Sign in to EnrollChain" }),
+      await screen.findByRole("heading", { name: "Sign In" }),
     ).toBeInTheDocument();
     expect(cache.getQueryData(["applications"])).toBeUndefined();
     expect(sessionStorage.getItem("enrollchain-session")).toBeNull();
@@ -341,7 +658,7 @@ describe("Milestone 1", () => {
     });
     mount("/applications");
     expect(
-      await screen.findByRole("heading", { name: "Sign in to EnrollChain" }),
+      await screen.findByRole("heading", { name: "Sign In" }),
     ).toBeInTheDocument();
     expect(sessionStorage.getItem("enrollchain-session")).toBeNull();
   });
@@ -362,7 +679,7 @@ describe("Milestone 1", () => {
   });
   it("shows an application loading error without inventing an empty result", async () => {
     mockApi((path) =>
-      path === "/applications/"
+      path.startsWith("/enrollments/?")
         ? response({ detail: "Applications unavailable" }, 503)
         : undefined,
     );

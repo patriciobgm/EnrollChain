@@ -1,3 +1,18 @@
+# EnrollChain — early enrollment client testing
+
+The current release adds preliminary section assignment, guidance/Registrar processing, private document integrity, reporting and manual LIS reconciliation. **DepEd LIS remains the official enrollment record.**
+
+Start the isolated client stack and find generated login accounts in [Client testing](docs/CLIENT_TESTING.md). Current scope: [Scope baseline](docs/SCOPE_BASELINE.md).
+
+```sh
+python3 scripts/prepare-client-test.py
+docker compose --env-file .env.client -f compose.client.yml up --build -d
+```
+
+Open http://localhost:8080. Forward only this web port; add the forwarded hostname to `.env.client` as documented. Existing local users and records are preserved.
+
+The instructions below describe the original developer setup. Earlier milestone-only limitations are superseded by the current scope baseline.
+
 # EnrollChain
 
 EnrollChain is a blockchain-assisted student admission and registration prototype for Sto. Domingo National Trade School.
@@ -72,13 +87,13 @@ python manage.py createsuperuser
 
 For Docker, use `docker compose exec backend python manage.py <command>` for those commands.
 
-1. Sign into `http://localhost:8000/admin/` with the administrator account.
-2. Create a school year and admission period. Period creation through admin/API adds the four confirmed requirements for each of NEW and TRANSFEREE; edit requirement rules as needed. RETURNING starts with none.
-3. Add only client-provided programs, assigning Academic or Technical Professional. Programs are optional; no invented strands are seeded.
-4. Create synthetic applicant/staff accounts. Set the role and, for staff, explicitly assign the matching permission group. Registrar defaults include learner/application/upload management and submission, without configuration management. Guidance/adviser defaults are empty. `is_staff` controls admin-site entry, not API staff authorization.
-5. Open `http://localhost:5173/login`. Applicants create a learner profile, save a draft, upload required PDFs and submit. Registrars can create a profile without an applicant account and select Walk-in. Linking that profile to a later account is deferred.
+1. Sign in through the frontend (`http://localhost:5173/login` locally, or `http://localhost:8080/login` with the client Docker stack).
+2. Administrator: use School Configuration to create the school year, admission period, tracks, programs and requirement assignments. NEW and TRANSFEREE initially require the four confirmed documents; RETURNING initially requires none.
+3. Configure the school’s actual programs and sections. Client-test programs prefixed DEMO are synthetic fixtures only.
+4. Use Users & Access to provision learner/staff accounts. Permissions are assigned through the role foundation; Guidance records interviews and Class Advisers view their assigned section rosters. Technical Django admin is not routed.
+5. Learner: complete your profile, choose period/grade/track/program, save and submit early enrollment, then upload required PDFs. Registrar can create walk-in records and link an unowned profile to a learner account.
 
-Submitted means receipt only, not admission or official enrollment. Application choices lock on submission; documents can be replaced only when a registrar requests a correction; see [implementation assumptions](docs/ASSUMPTIONS.md) for temporary rules. Configuration uses Django admin/API. Existing workflows and uploaded documents are read-only in admin.
+Submission is receipt only. Verified documents and a completed guidance interview gate qualification. Preliminary sectioning follows pre-enrollment; manually recorded LIS confirmation is required for official enrollment. Rejected/correction-requested document versions may be replaced with history retained. See [Client Testing](docs/CLIENT_TESTING.md) for the complete workflow and private account-file location.
 
 ## Milestone 1 API
 
@@ -104,10 +119,10 @@ See [Milestone 1 acceptance and validation](docs/MILESTONE_1_ACCEPTANCE.md) for 
 
 After updating dependencies, run `python manage.py migrate` and `python manage.py setup_admissions_roles` in the backend virtual environment. Both commands have been applied to the local SQLite development instance. Existing test-account passwords are unchanged. Sign out and back in to refresh the frontend permission list.
 
-1. Submit an applicant application with its required PDFs.
+1. Submit an learner application with its required PDFs.
 2. Sign in as the registrar, open **Document review**, and download a submitted PDF for inspection.
 3. Choose **Verify document**, **Request a correction**, or **Reject document**. Rejection/correction requires remarks.
-4. For a correction request, sign in as that applicant, open the application, read the feedback, and upload a replacement for the flagged requirement. Application fields stay locked.
+4. For a correction request, sign in as that learner, open the application, read the feedback, and upload a replacement for the flagged requirement. Application fields stay locked.
 5. Return to the registrar queue: the new version awaits review. The earlier version and decision remain in application history.
 6. Administrators can inspect the same queue and histories, but cannot record review decisions. Guidance/adviser accounts have no queue access.
 
@@ -123,3 +138,13 @@ npm run test:e2e
 In this local development session Chromium was installed under `/tmp/enrollchain-playwright`; use `PLAYWRIGHT_BROWSERS_PATH=/tmp/enrollchain-playwright npm run test:e2e` to reuse it. Unit checks remain `npm run test -- --run`. No real student data is required.
 
 See [Milestone 2 validation](docs/MILESTONE_2_ACCEPTANCE.md) and the [development roadmap](docs/ROADMAP.md).
+
+## Readiness update: administration, security and PDF preview
+
+See [readiness testing and accounts](docs/READINESS_ACCEPTANCE.md) for startup, account entry points and the end-to-end checklist. The update adds role-specific workspaces, school configuration, delegated user management, a read-only audit viewer, authorized unowned-profile linking and in-app PDF preview with page/zoom controls. Downloads remain available.
+
+`/security` provides opt-in authenticator MFA, one-use recovery codes, password change and session revocation. Technical Django admin login checks enrolled MFA too. A stable dedicated `MFA_ENCRYPTION_KEY` is required outside DEBUG; `.env.example` documents the variable. Login limits use shared database windows. This is an improved development implementation, not a claim that production security or the blockchain research scope is complete.
+
+After dependency installation, apply migrations and run `setup_admissions_roles`, then sign out and back in. The learner role is now LEARNER. The retired demo identities and their records were explicitly reset; staff credentials remain unchanged. See docs/CLIENT_TESTING.md for current accounts.
+
+Browser tests now include a disposable real Django/SQLite server. Install backend requirements into `backend/.venv` (or set `E2E_PYTHON` to that environment's Python), install Chromium with `npx playwright install chromium`, then run `npm run test:e2e` from `frontend/`. Tests create isolated databases and private PDFs; they do not reset local user data.

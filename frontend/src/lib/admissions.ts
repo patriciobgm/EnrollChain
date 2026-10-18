@@ -1,7 +1,11 @@
 export type Learner = {
   id: string;
   owner: string | null;
-  lrn: string;
+  owner_email?: string | null;
+  lrn: string | null;
+  email?: string | null;
+  last_grade_completed?: number | null;
+  school_year_completed?: string;
   first_name: string;
   middle_name: string;
   last_name: string;
@@ -46,6 +50,7 @@ export type Application = {
   classification: string;
   source: string;
   status: "DRAFT" | "SUBMITTED";
+  enrollment_status?: string;
   created_at: string;
   submitted_at: string | null;
 };
@@ -68,6 +73,7 @@ export type Document = {
   uploaded_at: string;
   sha256: string;
   file_size: number;
+  validation_flags?: string[];
   review: DocumentReview | null;
   review_status: ReviewStatus;
   is_latest: boolean;
@@ -91,3 +97,80 @@ export interface ReviewQueue {
   previous: string | null;
   results: Document[];
 }
+
+export interface TrackConfiguration {
+  code: string;
+  name: string;
+  category: "ACADEMIC" | "TECHPRO";
+  default_section_capacity: number;
+  active: boolean;
+}
+export interface Section {
+  id: number;
+  code: string;
+  name: string;
+  school_year: number;
+  track: string;
+  track_name: string;
+  program: number;
+  program_name: string;
+  grade_level: number;
+  capacity: number;
+  current_count: number;
+  available_slots: number;
+  utilization: number;
+  status: string;
+  active: boolean;
+  adviser: string | null;
+}
+export interface Enrollment extends Application {
+  school_year: number;
+  enrollment_status: string;
+  track_name: string;
+  learner_lrn: string | null;
+  learner_sex: string;
+  guidance_completed: boolean;
+  eligibility: {
+    ready: boolean;
+    profile_missing: string[];
+    pending_requirements: string[];
+    guidance_completed: boolean;
+    track_and_program_valid: boolean;
+  };
+  section_assignment: {
+    id: number;
+    section: number;
+    section_name: string;
+    section_code: string;
+    assigned_at: string;
+  } | null;
+  lis_record: {
+    status: string;
+    reference: string;
+    submission_date: string | null;
+    confirmation_date: string | null;
+    remarks: string;
+  } | null;
+  enrollment_events: {
+    id: number;
+    action: string;
+    old_status: string;
+    new_status: string;
+    remarks: string;
+    created_at: string;
+    actor_role: string;
+  }[];
+}
+export interface Paginated<T> {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: T[];
+}
+export const readable = (value: string) =>
+  value === "RETURNING"
+    ? "Balik-Aral"
+    : value
+        .replaceAll("_", " ")
+        .toLowerCase()
+        .replace(/^./, (letter) => letter.toUpperCase());

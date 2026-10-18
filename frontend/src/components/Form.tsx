@@ -66,10 +66,10 @@ export function Page({
   return (
     <div className="page-enter mx-auto max-w-6xl px-5 py-9 sm:px-8 sm:py-12">
       <div className="mb-8 border-b border-line pb-6">
-        <p className="mb-2 text-[0.65rem] font-bold uppercase tracking-[0.22em] text-muted">
-          Senior High School · EnrollChain
-        </p>
-        <h1 className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">
+        <h1
+          tabIndex={-1}
+          className="font-display text-3xl font-semibold tracking-tight sm:text-4xl"
+        >
           {title}
         </h1>
       </div>

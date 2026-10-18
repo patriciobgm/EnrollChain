@@ -1,24 +1,24 @@
 @import "tailwindcss";
 
 @theme {
-  --color-canvas: #f5f4ef;
+  --color-canvas: #f4f7fc;
   --color-surface: #ffffff;
-  --color-ink: #14231d;
-  --color-muted: #506158;
-  --color-line: #dce5df;
-  --color-brand: #176b4d;
-  --color-brand-strong: #10533b;
-  --color-brand-soft: #e5f3ec;
-  --color-mint: #9fe0c2;
+  --color-ink: #14243c;
+  --color-muted: #4c5e77;
+  --color-line: #dbe3f0;
+  --color-brand: #2457a6;
+  --color-brand-strong: #163d7b;
+  --color-brand-soft: #eaf0fc;
+  --color-mint: #b8d3ff;
   --color-success: #22a06b;
   --color-warning: #d49a28;
   --color-danger: #cf4c4c;
   --shadow-panel:
-    0 1px 2px rgb(20 35 29 / 0.035), 0 5px 14px rgb(20 35 29 / 0.035),
-    0 18px 36px -18px rgb(20 35 29 / 0.14);
+    0 1px 2px rgb(20 36 60 / 0.035), 0 5px 14px rgb(20 36 60 / 0.035),
+    0 18px 36px -18px rgb(20 36 60 / 0.14);
   --shadow-dialog:
-    0 0 0 1px rgb(255 255 255 / 0.2), 0 12px 24px rgb(20 35 29 / 0.12),
-    0 40px 100px -24px rgb(20 35 29 / 0.4);
+    0 0 0 1px rgb(255 255 255 / 0.2), 0 12px 24px rgb(20 36 60 / 0.12),
+    0 40px 100px -24px rgb(20 36 60 / 0.4);
   --font-sans: "Avenir Next", "Segoe UI", "Helvetica Neue", sans-serif;
   --font-display:
     "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
@@ -80,10 +80,6 @@
   outline: 3px solid var(--color-brand);
   outline-offset: 3px;
 }
-nav a.active {
-  text-decoration: underline;
-  text-underline-offset: 5px;
-}
 
 @media (prefers-reduced-motion: no-preference) {
   .page-enter {
@@ -104,7 +100,7 @@ nav a.active {
 }
 @keyframes page-arrive {
   from {
-    opacity: 0;
+    opacity: 1;
     transform: translateY(6px);
   }
   to {
@@ -127,8 +123,85 @@ nav a.active {
   color: var(--color-muted);
   opacity: 1;
 }
-nav[aria-label="Main navigation"] a {
-  display: inline-flex;
+
+progress {
+  appearance: none;
+  overflow: hidden;
+  border: 0;
+  border-radius: 999px;
+  background: var(--color-line);
+}
+progress::-webkit-progress-bar {
+  background: var(--color-line);
+  border-radius: 999px;
+}
+progress::-webkit-progress-value {
+  background: var(--color-brand);
+  border-radius: 999px;
+}
+progress::-moz-progress-bar {
+  background: var(--color-brand);
+  border-radius: 999px;
+}
+
+/* Shared control sizing and heading convention. */
+.field input:not([type="checkbox"]):not([type="radio"]),
+.field select {
+  height: 44px;
   min-height: 44px;
-  align-items: center;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+.field textarea {
+  min-height: 110px;
+}
+h1,
+h2,
+h3,
+nav a,
+th,
+[role="tab"] {
+  text-transform: capitalize;
+}
+
+button:not(:disabled),
+summary,
+[role="button"] {
+  cursor: pointer;
+}
+button:disabled {
+  cursor: not-allowed;
+}
+header p.font-semibold,
+button,
+.action,
+.field > label {
+  text-transform: capitalize;
+}
+.table-frame {
+  @apply overflow-auto rounded-2xl border border-line bg-surface;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+  text-align: left;
+}
+thead {
+  background: var(--color-brand-soft);
+}
+th,
+td {
+  padding: 0.875rem 1rem;
+  vertical-align: middle;
+}
+tbody > tr {
+  border-top: 1px solid var(--color-line);
+}
+tbody > tr:hover {
+  background-color: color-mix(
+    in srgb,
+    var(--color-brand-soft) 45%,
+    transparent
+  );
 }

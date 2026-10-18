@@ -1,6 +1,14 @@
-import { Database, FileLock2, Link2, ShieldCheck } from "lucide-react";
+import { SectionsPage } from "../pages/SectionsPage";
+import { ReportsPage } from "../pages/ReportsPage";
+import { BlockchainPage } from "../pages/BlockchainPage";
 import { Navigate, Outlet, Route, Routes } from "react-router-dom";
 
+import { ConfigurationPage } from "../pages/ConfigurationPage";
+import { AuditPage } from "../pages/AuditPage";
+import { UsersPage } from "../pages/UsersPage";
+import { DashboardPage } from "../pages/DashboardPage";
+import { SuperadminPage } from "../pages/SuperadminPage";
+import { SecurityPage } from "../pages/SecurityPage";
 import { AppShell } from "../components/AppShell";
 import { FoundationPage } from "../pages/FoundationPage";
 
@@ -9,7 +17,10 @@ import { ReviewQueuePage } from "../pages/ReviewQueuePage";
 import { LoadingState } from "../components/ui/LoadingState";
 import { LoginPage } from "../pages/LoginPage";
 import { LearnersPage } from "../pages/LearnersPage";
-import { ApplicationsPage } from "../pages/ApplicationsPage";
+import {
+  ApplicationsPage,
+  EnrollmentDetailPage,
+} from "../pages/ApplicationsPage";
 import { ApplicationFormPage } from "../pages/ApplicationFormPage";
 import { ApplicationDetailPage } from "../pages/ApplicationDetailPage";
 
@@ -31,45 +42,33 @@ function Protected({ permission }: { permission?: string }) {
   return <Outlet />;
 }
 
-const capabilities = [
-  {
-    title: "Access foundation",
-    description:
-      "Email identity, JWT sessions, coarse roles, and fine-grained permissions.",
-    icon: ShieldCheck,
-  },
-  {
-    title: "Private records",
-    description:
-      "Secured storage boundary with no public document URL by default.",
-    icon: FileLock2,
-  },
-  {
-    title: "Reliable data",
-    description: "PostgreSQL-backed API with append-oriented audit events.",
-    icon: Database,
-  },
-  {
-    title: "Blockchain-ready",
-    description:
-      "Disabled-by-default provider boundary and local Hardhat environment.",
-    icon: Link2,
-  },
-] as const;
-
 export function App() {
   return (
     <AuthProvider>
       <Routes>
         <Route element={<AppShell />}>
-          <Route
-            index
-            element={<FoundationPage capabilities={capabilities} />}
-          />
+          <Route index element={<FoundationPage />} />
           <Route path="login" element={<LoginPage />} />
           <Route element={<Protected />}>
+            <Route path="dashboard" element={<DashboardPage />} />
+            <Route
+              path="administration"
+              element={<DashboardPage administration />}
+            />
+            <Route path="superadmin" element={<SuperadminPage />} />
+            <Route
+              path="administration/configuration"
+              element={<ConfigurationPage />}
+            />
+            <Route path="administration/audit" element={<AuditPage />} />
+            <Route path="administration/users" element={<UsersPage />} />
+            <Route path="security" element={<SecurityPage />} />
             <Route path="applications" element={<ApplicationsPage />} />
             <Route path="reviews" element={<ReviewQueuePage />} />
+            <Route path="sections" element={<SectionsPage />} />
+            <Route path="reports" element={<ReportsPage />} />
+            <Route path="blockchain" element={<BlockchainPage />} />
+            <Route path="enrollments/:id" element={<EnrollmentDetailPage />} />
           </Route>
           <Route element={<Protected permission="view_learner" />}>
             <Route path="learners" element={<LearnersPage />} />

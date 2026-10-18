@@ -1,9 +1,10 @@
-from django.conf import settings
 from django.db import connection
 from drf_spectacular.utils import extend_schema
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
+
+from apps.blockchain_records.services import configuration
 
 
 class HealthView(APIView):
@@ -20,6 +21,6 @@ class HealthView(APIView):
             {
                 "status": "ok",
                 "database": "available",
-                "blockchain_enabled": settings.BLOCKCHAIN["enabled"],
+                "blockchain_enabled": configuration()["enabled"],
             }
         )

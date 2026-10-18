@@ -1,5 +1,6 @@
 # EnrollChain client and research-defense readiness review
 
+> Historical assessment: demo preservation and old accounts below were superseded by the latest explicit reset. Use [Client Testing](CLIENT_TESTING.md) for the current workflow and credentials.
 Assessment date: 2026-09-12. This is a development assessment and proposed acceptance plan, not approval of unresolved business rules or a claim of production readiness.
 
 ## Verdict
@@ -18,7 +19,7 @@ Reviewed the current accounts, admissions, audit and blockchain code, React rout
 
 Documents supply requirements and research claims. The user's confirmed SHS scope, PDF-only restrictions and registrar-only review decisions take precedence over conflicting document examples.
 
-Read-only inspection of the local database found six users, one Ana Cruz profile without an owner, her submitted application created by the administrator, and 36 audit events at inspection time. Counts are a snapshot. No users, passwords, applications or files were changed during this assessment. Ana's requested reseed remains pending.
+Read-only inspection of the local database found six users, one the retired demo learner profile without an owner, her submitted application created by the administrator, and 36 audit events at inspection time. Counts are a snapshot. No users, passwords, applications or files were changed during this assessment. the retired demo learner’s requested reseed remains pending.
 
 The existing acceptance report records 64 backend tests, 12 frontend unit tests and five browser tests passing. Those results were not rerun for this documentation-only assessment. Browser tests mock API responses; SQLite checks do not prove PostgreSQL concurrency. This assessment is not a penetration test or a school acceptance test.
 
@@ -30,7 +31,7 @@ The existing acceptance report records 64 backend tests, 12 frontend unit tests 
 | No audit logs | Events are recorded and have read-only Django admin inspection. There is no React audit viewer. Model save/delete restrictions do not make the database tamper-proof against privileged SQL or bulk ORM writes. | Searchable, paginated, permission-controlled viewer; security-event coverage; protected audit retention and evidence of attempted changes. |
 | No MFA/security | Password hashing, JWT refresh rotation, authorization and private downloads exist. No MFA flow, login throttling or failed-login audit appears in the reviewed login implementation. | Implement authentication lifecycle and security controls, including MFA enrollment/recovery and coverage of Django admin as well as API login. |
 | Same modules for different roles | Shared routes and forms dominate; menu visibility changes with permissions. Document review has registrar actions and administrator oversight. | Role-specific landing pages, task queues, available actions and empty states. Preserve server-side ownership and permissions. |
-| Ana absent for applicant | Ana's `owner` is null; application creator is the administrator. Applicant queries correctly restrict records to learner ownership. Existing update validation prohibits ownership reassignment. | Explicit linked-account selection, an authorized/audited unowned-profile linking process, and a scoped demo reseed. Do not make all learners visible to applicants. |
+| the retired demo learner absent for applicant | the retired demo learner’s `owner` is null; application creator is the administrator. Applicant queries correctly restrict records to learner ownership. Existing update validation prohibits ownership reassignment. | Explicit linked-account selection, an authorized/audited unowned-profile linking process, and a scoped demo reseed. Do not make all learners visible to applicants. |
 
 Relevant implementation: `backend/config/urls.py`, `backend/config/settings.py`, `backend/apps/accounts/{views,serializers}.py`, `backend/apps/admissions/{serializers,permissions,views}.py`, `backend/apps/audit/{models,admin,services}.py`, `frontend/src/app/App.tsx`, `frontend/src/components/AppShell.tsx`, and `frontend/src/pages/LearnersPage.tsx`.
 
@@ -38,13 +39,13 @@ Relevant implementation: `backend/config/urls.py`, `backend/config/settings.py`,
 
 ### A. Repair account ownership and produce reproducible demo data
 
-- Back up the affected synthetic records and private files before a scoped Ana reset. Preserve all six users and their existing passwords, unrelated records, and audit history.
+- Back up the affected synthetic records and private files before a scoped the retired demo learner reset. Preserve all six users and their existing passwords, unrelated records, and audit history.
 - Explicitly identify the intended applicant account; do not infer a real account relationship from matching names or an LRN alone.
 - Replace raw applicant UUID entry with an authorized account selector and an explicit unlinked walk-in option. Show the linked account to authorized staff.
 - Add a constrained service for linking an unowned learner; require authorization and an audit event. Reassignment of an already-owned learner needs a separate policy.
 - Provide an idempotent demo seed command with clearly documented reset boundaries and synthetic PDFs.
 
-Exit: the intended applicant sees Ana and her application; a second applicant cannot list, retrieve, alter or download Ana's records; all existing users remain; repeated seeding does not create duplicates. Verify this with the real API and database.
+Exit: the intended applicant sees the retired demo learner and her application; a second applicant cannot list, retrieve, alter or download the retired demo learner’s records; all existing users remain; repeated seeding does not create duplicates. Verify this with the real API and database.
 
 ### B. Administration, distinct role experiences, audit and security
 
@@ -149,3 +150,8 @@ These questions do not block ownership UX, role-specific administration, audit v
 Using repeatable synthetic records: applicant signs in, finds the correct linked profile, submits required PDFs, registrar requests one correction, applicant replaces only that version, registrar verifies, system records and confirms real blockchain evidence, authorized staff complete the approved admission and registration sequence, applicant sees the timeline, panel verifies a privacy-safe QR reference and tests an altered PDF, administrator traces the audit history, and a second applicant is denied access. Include a failed transaction/retry and privileged MFA demonstration.
 
 Completion means this scenario and its negative cases work against the real stack, the school accepts the workflows, and every research claim has corresponding evidence or an explicit limitation. A feature count, attractive dashboard or successful Solidity compilation does not establish that outcome.
+
+
+## Subsequent implementation note
+
+The findings above describe the pre-update snapshot. A subsequent readiness update delivers private PDF preview, distinct workspaces, administration/configuration, audit visibility, unowned-profile linking and opt-in MFA/session controls. the retired demo learner’s submitted application was preserved and linked, with all users/passwords retained. Registrar final admission authority has been confirmed. See [READINESS_ACCEPTANCE.md](READINESS_ACCEPTANCE.md) for implemented behavior, test evidence and remaining limits; the broader workflow/blockchain verdict still applies.
