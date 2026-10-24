@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
-import { Link } from "react-router-dom";
+import { BackLink } from "../components/BackNavigation";
 import { ErrorMessage, Field, Page } from "../components/Form";
 import { Button } from "../components/ui/Button";
 import { apiRequest, jsonBody, setTokens } from "../lib/api";
@@ -69,13 +69,13 @@ export function SecurityPage() {
               </ul>
             </>
           )}
-          <Link
-            className="action mt-5"
+          <BackLink
+            className="mt-5"
             to="/login"
             onClick={() => window.dispatchEvent(new Event("session-expired"))}
           >
-            Return to sign in
-          </Link>
+            Return to Sign In
+          </BackLink>
         </section>
       </Page>
     );
@@ -86,12 +86,12 @@ export function SecurityPage() {
           <h2 className="font-display text-2xl">Security status</h2>
           <ErrorMessage error={status.error} />
           <p className="mt-4 leading-7">
-            Two-factor authentication:{" "}
+            Two-Factor Authentication:{" "}
             <strong>
               {status.data
                 ? status.data.enabled
                   ? "Enabled"
-                  : "Not enabled"
+                  : "Not Enabled"
                 : "Loading…"}
             </strong>
           </p>

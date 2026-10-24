@@ -133,7 +133,7 @@ export function DocumentReviewDialog({
           {document.version}. Your decision applies to this file version and is
           retained in the review history.
         </DialogDescription>
-        <div className="mt-6 grid min-h-0 min-w-0 gap-6 overflow-y-auto lg:grid-cols-[minmax(0,1.5fr)_minmax(280px,1fr)]">
+        <div className="mt-6 grid min-h-0 min-w-0 gap-6 overflow-y-auto [scrollbar-gutter:stable] lg:grid-cols-[minmax(0,1.5fr)_minmax(280px,1fr)]">
           <div className="min-w-0 space-y-4 rounded-2xl border border-line bg-canvas p-4">
             <p className="mb-3 break-all text-sm font-medium">
               {document.original_filename}

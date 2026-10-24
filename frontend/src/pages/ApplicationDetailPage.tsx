@@ -1,8 +1,9 @@
+import { BackLink } from "../components/BackNavigation";
 import { IntegrityCheck } from "../components/IntegrityCheck";
 import { EnrollmentPanel } from "../components/EnrollmentPanel";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { ErrorMessage, Field, Page } from "../components/Form";
 import { apiRequest, jsonBody } from "../lib/api";
 import { readable } from "../lib/admissions";
@@ -165,12 +166,9 @@ export function ApplicationDetailPage() {
   const app = application.data;
   return (
     <Page title="Application details">
-      <Link
-        to="/applications"
-        className="mb-5 inline-block text-brand underline"
-      >
-        Back to applications
-      </Link>
+      <BackLink to="/applications" className="mb-5">
+        Back to Applications
+      </BackLink>
       <ErrorMessage
         error={application.error || requirements.error || documents.error}
       />
@@ -357,15 +355,14 @@ export function ApplicationDetailPage() {
               )}
               <div className="space-y-3">
                 {documents.data?.map((doc) => (
-                  <article
-                    key={doc.id}
-                    className="panel flex flex-wrap items-center justify-between gap-4"
-                  >
+                  <article key={doc.id} className="panel space-y-4">
                     <div className="min-w-0">
                       <h3 className="break-all font-semibold">
-                        {doc.original_filename}
+                        {doc.requirement_name}
                       </h3>
-                      <p className="text-sm">{doc.requirement_name}</p>
+                      <p className="mt-1 break-all text-sm text-muted">
+                        {doc.original_filename}
+                      </p>
                       <div className="my-2 flex flex-wrap items-center gap-2">
                         <ReviewStatusBadge
                           status={doc.review_status ?? "PENDING"}
@@ -395,17 +392,21 @@ export function ApplicationDetailPage() {
                         {new Date(doc.uploaded_at).toLocaleString()}
                       </p>
                     </div>
-                    <PdfPreviewDialog
-                      id={doc.id}
-                      filename={doc.original_filename}
-                    />
-                    <button
-                      className="action secondary"
-                      disabled={downloading !== null}
-                      onClick={() => void download(doc)}
-                    >
-                      {downloading === doc.id ? "Downloading…" : "Download PDF"}
-                    </button>
+                    <div className="flex flex-wrap items-center gap-3 border-t border-line pt-4">
+                      <PdfPreviewDialog
+                        id={doc.id}
+                        filename={doc.original_filename}
+                      />
+                      <button
+                        className="action secondary"
+                        disabled={downloading !== null}
+                        onClick={() => void download(doc)}
+                      >
+                        {downloading === doc.id
+                          ? "Downloading…"
+                          : "Download PDF"}
+                      </button>
+                    </div>
                     <IntegrityCheck id={doc.id} />
                   </article>
                 ))}

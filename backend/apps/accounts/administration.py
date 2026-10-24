@@ -176,7 +176,7 @@ class ManagedUserViewSet(
 
     def get_queryset(self):
         query = self.request.query_params.get("search", "").strip()[:150]
-        queryset = self.queryset
+        queryset = self.queryset.filter(is_superuser=False)
         if getattr(self.request.user, "role", None) == "REGISTRAR":
             queryset = queryset.filter(role__in=REGISTRAR_ACCOUNT_ROLES, is_superuser=False)
         if self.request.query_params.get("role"):

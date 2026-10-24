@@ -1,0 +1,53 @@
+// Read-only checks of stored PDFs and history presentation. Credentials stay local.
+import { createRequire } from 'node:module';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+const require = createRequire(resolve('frontend/package.json'));
+const { chromium, expect } = require('@playwright/test');
+const account = JSON.parse(readFileSync('.client-test/accounts.json', 'utf8')).find(a => a.role === 'REGISTRAR');
+const base = process.env.CLIENT_TEST_URL || 'http://127.0.0.1:8080';
+const browser = await chromium.launch();
+try {
+  const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+  await page.goto(`${base}/login`);
+  await page.getByLabel('Email', { exact: true }).fill(account.email);
+  await page.getByLabel('Password', { exact: true }).fill(account.password);
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await page.waitForURL(/dashboard/);
+  const doc = await page.evaluate(async () => {
+    const token = JSON.parse(sessionStorage.getItem('enrollchain-session')).access;
+    const response = await fetch('/api/v1/documents/', { headers: { Authorization: `Bearer ${token}` } });
+    if (!response.ok) throw new Error('Document list unavailable');
+    const data = await response.json();
+    return data.find(d => /SF9/i.test(d.requirement_name)) ?? data[0];
+  });
+  if (!doc) throw new Error('No stored PDF available');
+  await page.goto(`${base}/applications/${doc.application}`);
+  await page.getByRole('button', { name: /^Enrollment History/ }).click();
+  await expect(page.getByRole('dialog', { name: 'Enrollment History', exact: true })).toBeVisible();
+  await page.keyboard.press('Escape');
+  const card = page.locator('article').filter({ has: page.getByRole('heading', { name: doc.requirement_name, exact: true }) }).filter({hasText: doc.original_filename}).first();
+  await card.getByRole('button', { name: 'Preview PDF', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Document Preview', exact: true });
+  await expect.poll(() => dialog.locator('canvas').evaluate(c => c.width)).toBeGreaterThan(300);
+  await dialog.getByRole('button', { name: 'Zoom out', exact: true }).click();
+  await expect(dialog.getByText('75%', { exact: true })).toBeVisible();
+  await expect(dialog.getByText('Rendering page…', { exact: true })).toHaveCount(0);
+  const size = await dialog.locator('canvas').evaluate(c => [c.width, c.height]);
+  await page.waitForTimeout(1500);
+  expect(await dialog.locator('canvas').evaluate(c => [c.width, c.height])).toEqual(size);
+  await expect(dialog.getByText('Rendering page…', { exact: true })).toHaveCount(0);
+  for (let i = 0; i < 5; i++) await dialog.getByRole('button', { name: 'Zoom in', exact: true }).click();
+  await expect(dialog.getByText('Rendering page…', { exact: true })).toHaveCount(0);
+  const surface = dialog.getByLabel('Scrollable PDF page', { exact: true });
+  const box = await surface.boundingBox();
+  const before = await dialog.evaluate(n => n.scrollTop);
+  await page.mouse.move(box.x + 250, box.y + 100);
+  await page.mouse.down();
+  await page.mouse.move(box.x + 140, box.y + 40, { steps: 6 });
+  await page.mouse.up();
+  await expect.poll(() => surface.evaluate(n => n.scrollLeft)).toBeGreaterThan(0);
+  await expect.poll(() => dialog.evaluate(n => n.scrollTop)).toBeGreaterThan(before);
+  await expect(dialog.getByRole('alert')).toHaveCount(0);
+  console.log('PASS: stored PDF at 75% remains stable; mouse pans horizontally and vertically; document-type headings and Enrollment History dialog.');
+} finally { await browser.close(); }

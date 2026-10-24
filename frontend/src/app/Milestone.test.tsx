@@ -346,7 +346,7 @@ describe("Milestone 1", () => {
     );
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
     expect(screen.getByText("Private detail")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Back to records" }));
+    fireEvent.click(screen.getByRole("button", { name: "Back to Records" }));
     expect(screen.getByRole("table")).toBeInTheDocument();
     expect(
       fetchMock.mock.calls.some(([url]) => String(url).includes("page=2")),
@@ -510,12 +510,18 @@ describe("Milestone 1", () => {
         : undefined,
     );
     mount("/applications");
+    fireEvent.click(await screen.findByRole("button", { name: "Filters" }));
     fireEvent.change(await screen.findByLabelText("Grade Level"), {
       target: { value: "12" },
     });
     fireEvent.change(screen.getByLabelText("Learner Classification"), {
       target: { value: "RETURNING" },
     });
+    expect(
+      screen.getByRole("option", { name: "Balik-Aral" }),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Apply Filters" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     await waitFor(() =>
       expect(
         fetch.mock.calls.some(([url]) =>
@@ -523,9 +529,6 @@ describe("Milestone 1", () => {
         ),
       ).toBe(true),
     );
-    expect(
-      screen.getByRole("option", { name: "Balik-Aral" }),
-    ).toBeInTheDocument();
   });
 
   it("filters configurable programs by track and creates a draft", async () => {

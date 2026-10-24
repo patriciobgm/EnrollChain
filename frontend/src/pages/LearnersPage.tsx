@@ -1,3 +1,4 @@
+import { BackButton } from "../components/BackNavigation";
 import {
   Dialog,
   DialogContent,
@@ -183,15 +184,14 @@ export function LearnersPage() {
         </div>
         <div className="flex gap-3">
           {!applicant && (
-            <Button
-              variant="outline"
+            <BackButton
               onClick={() => {
                 setSelected(null);
                 setLinking(null);
               }}
             >
-              Back to records
-            </Button>
+              Back to Records
+            </BackButton>
           )}
           {can(user, "change_learner") && (
             <Button onClick={() => editProfile(profile)}>Edit profile</Button>
@@ -313,13 +313,20 @@ export function LearnersPage() {
         <form
           key={editing?.id ?? "new"}
           onSubmit={submit}
-          className="max-w-4xl space-y-8"
+          className="w-full space-y-6"
         >
           <ErrorMessage error={save.error} />
           {groups.map((group) => (
-            <fieldset key={group.title} className="border-b border-line pb-8">
-              <legend className="mb-5 text-lg font-bold">{group.title}</legend>
-              <div className="grid gap-5 sm:grid-cols-2">
+            <fieldset
+              key={group.title}
+              className="min-w-0 rounded-2xl border border-line bg-surface px-5 pb-6 shadow-panel sm:px-6"
+            >
+              <legend className="px-2 py-2 text-lg font-bold">
+                {group.title}
+              </legend>
+              <div
+                className={`grid items-end gap-5 sm:grid-cols-2 ${group.names.length > 2 ? "xl:grid-cols-3" : ""}`}
+              >
                 {fields
                   .filter(([name]) => group.names.includes(name))
                   .map(([name, label, required]) => (

@@ -10,6 +10,14 @@ import {
 } from "../lib/admissions";
 import { useAuth } from "../lib/auth";
 import { ErrorMessage, Field } from "./Form";
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  DialogDescription,
+  DialogTrigger,
+} from "./ui/Dialog";
+import { Button } from "./ui/Button";
 import { LoadingState } from "./ui/LoadingState";
 
 export function EnrollmentPanel({ id }: { id: string }) {
@@ -271,26 +279,39 @@ export function EnrollmentPanel({ id }: { id: string }) {
           </div>
         </div>
       )}
-      <details>
-        <summary className="cursor-pointer font-semibold">
-          Enrollment history ({app.enrollment_events.length})
-        </summary>
-        <ol className="mt-3 space-y-3">
-          {app.enrollment_events.map((e) => (
-            <li key={e.id} className="border-l-2 border-line pl-3 text-sm">
-              <strong>{readable(e.action)}</strong>
-              <p className="text-muted">
-                {new Date(e.created_at).toLocaleString()} ·{" "}
-                {readable(e.actor_role ?? "System")}
-              </p>
-              {e.remarks && <p className="whitespace-pre-wrap">{e.remarks}</p>}
-            </li>
-          ))}
-        </ol>
-        {app.enrollment_events.length === 0 && (
-          <p className="mt-3 text-sm">No workflow events yet.</p>
-        )}
-      </details>
+      <Dialog>
+        <DialogTrigger asChild>
+          <Button variant="outline">
+            Enrollment History ({app.enrollment_events.length})
+          </Button>
+        </DialogTrigger>
+        <DialogContent>
+          <DialogTitle>Enrollment History</DialogTitle>
+          <DialogDescription>
+            {app.enrollment_events.length} recorded events
+          </DialogDescription>
+          <ol className="mt-6 space-y-5">
+            {app.enrollment_events.map((e) => (
+              <li
+                key={e.id}
+                className="relative border-l-2 border-brand/25 pl-5 text-sm before:absolute before:-left-[5px] before:top-1 before:size-2 before:rounded-full before:bg-brand"
+              >
+                <strong>{readable(e.action)}</strong>
+                <p className="text-muted">
+                  {new Date(e.created_at).toLocaleString()} ·{" "}
+                  {readable(e.actor_role ?? "System")}
+                </p>
+                {e.remarks && (
+                  <p className="whitespace-pre-wrap">{e.remarks}</p>
+                )}
+              </li>
+            ))}
+          </ol>
+          {app.enrollment_events.length === 0 && (
+            <p className="mt-3 text-sm">No workflow events yet.</p>
+          )}
+        </DialogContent>
+      </Dialog>
     </section>
   );
 }

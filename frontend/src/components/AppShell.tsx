@@ -1,5 +1,12 @@
+import { AccountMenu } from "./AccountMenu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from "./ui/Dialog";
 import { NotificationCenter } from "./NotificationCenter";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import {
   BarChart3,
@@ -14,7 +21,6 @@ import {
   ShieldCheck,
   UserRound,
   Users,
-  X,
   type LucideIcon,
 } from "lucide-react";
 import { can, useAuth } from "../lib/auth";
@@ -33,6 +39,7 @@ export function AppShell() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [menu, setMenu] = useState(false);
+  const menuTrigger = useRef<HTMLButtonElement>(null);
   async function signOut() {
     setBusy(true);
     setError("");
@@ -143,17 +150,17 @@ export function AppShell() {
     <Link
       to={user ? landingPage(user) : "/"}
       aria-label="EnrollChain home"
-      className="flex items-center gap-3"
+      className="flex min-w-0 items-center gap-2 lg:gap-3"
     >
       <img
         src="/assets/school-logo.png"
         alt=""
-        className="size-12 rounded-full bg-white object-contain"
+        className="size-9 shrink-0 rounded-full bg-white object-contain lg:size-12"
         width={48}
         height={48}
       />
       <span>
-        <span className="block text-xl font-bold tracking-tight">
+        <span className="block text-lg font-bold tracking-tight lg:text-xl">
           EnrollChain
         </span>
       </span>
@@ -162,41 +169,7 @@ export function AppShell() {
   const account = user && (
     <div className="flex items-center gap-2">
       <NotificationCenter />
-      <details className="relative">
-        <summary className="flex cursor-pointer list-none items-center gap-3 rounded-xl border border-line bg-surface p-2">
-          <span className="flex size-9 items-center justify-center rounded-full bg-brand-soft text-sm font-bold text-brand">
-            {user.first_name
-              ? `${user.first_name[0]}${user.last_name?.[0] || ""}`.toUpperCase()
-              : user.email.slice(0, 2).toUpperCase()}
-          </span>
-          <span className="hidden max-w-48 truncate text-sm font-semibold sm:block">
-            {user.first_name
-              ? `${user.first_name} ${user.last_name || ""}`
-              : user.email.split("@")[0]}
-          </span>
-        </summary>
-        <div className="absolute right-0 top-full z-40 mt-2 w-64 rounded-xl border border-line bg-surface p-4 shadow-panel">
-          <p className="break-all text-sm font-semibold">{user.email}</p>
-          <p className="my-2 text-xs text-muted">
-            {user.role.replaceAll("_", " ")}
-          </p>
-          <Link
-            to={user.role === "LEARNER" ? "/learners" : "/security"}
-            className="block py-2 text-sm text-brand"
-            onClick={(e) =>
-              e.currentTarget.closest("details")?.removeAttribute("open")
-            }
-          >
-            {user.role === "LEARNER" ? "My Profile" : "Account Security"}
-          </Link>
-          <button
-            className="py-2 text-sm font-semibold"
-            onClick={() => void signOut()}
-          >
-            Sign Out
-          </button>
-        </div>
-      </details>
+      <AccountMenu onSignOut={() => void signOut()} busy={busy} />
     </div>
   );
   function links(entries: NavItem[]) {
@@ -222,35 +195,25 @@ export function AppShell() {
       </a>
       {user ? (
         <>
-          <header className="sticky top-0 z-30 flex items-center justify-between border-b border-line bg-white/95 px-5 py-3 backdrop-blur lg:hidden">
+          <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-2 border-b border-line bg-surface px-3 lg:hidden">
             {brand}
-            {account}
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label={menu ? "Close navigation" : "Open navigation"}
-              aria-expanded={menu}
-              aria-controls="school-navigation"
-              onClick={() => setMenu((value) => !value)}
-            >
-              {menu ? <X /> : <Menu />}
-            </Button>
+            <div className="flex shrink-0 items-center gap-1">
+              {account}
+              <Button
+                ref={menuTrigger}
+                variant="ghost"
+                size="icon"
+                aria-label="Open navigation"
+                aria-expanded={menu}
+                aria-controls="mobile-navigation"
+                onClick={() => setMenu(true)}
+              >
+                <Menu aria-hidden="true" />
+              </Button>
+            </div>
           </header>
-          <aside
-            id="school-navigation"
-            onKeyDown={(e) => {
-              if (e.key === "Escape") {
-                setMenu(false);
-                window.document
-                  .querySelector<HTMLButtonElement>(
-                    '[aria-controls="school-navigation"]',
-                  )
-                  ?.focus();
-              }
-            }}
-            className={`${menu ? "block" : "hidden"} fixed bottom-0 top-[73px] z-30 w-64 overflow-y-auto border-r border-line bg-surface p-5 shadow-panel lg:top-0 lg:block lg:shadow-none`}
-          >
-            <div className="mb-8 hidden lg:block">{brand}</div>
+          <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 overflow-y-auto border-r border-line bg-surface p-4 lg:block">
+            <div className="mb-7">{brand}</div>
             <p className="mb-3 px-3 text-[10px] font-bold uppercase tracking-[0.15em] text-muted">
               {user.role.replaceAll("_", " ")}
             </p>
@@ -258,13 +221,13 @@ export function AppShell() {
               {links(items)}
               {administration.length > 0 && (
                 <>
-                  <p className="px-3 pb-2 pt-6 text-[10px] font-bold uppercase tracking-[0.15em] text-muted">
+                  <p className="px-3 pb-2 pt-5 text-[10px] font-bold uppercase tracking-[0.15em] text-muted">
                     Administration
                   </p>
                   {links(administration)}
                 </>
               )}
-              <div className="mt-6 border-t border-line pt-4">
+              <div className="mt-5 border-t border-line pt-3">
                 {links([
                   {
                     to: "/security",
@@ -284,6 +247,55 @@ export function AppShell() {
               </div>
             </nav>
           </aside>
+          <Dialog open={menu} onOpenChange={setMenu}>
+            <DialogContent
+              id="mobile-navigation"
+              className="left-0 top-0 h-dvh max-h-dvh w-[min(86vw,320px)] max-w-none translate-x-0 translate-y-0 rounded-none rounded-r-2xl border-0 p-4 sm:p-4"
+              onCloseAutoFocus={(event) => {
+                event.preventDefault();
+                menuTrigger.current?.focus();
+              }}
+            >
+              <DialogTitle className="mb-5 font-sans text-lg">
+                Navigation
+              </DialogTitle>
+              <DialogDescription className="sr-only">
+                School workspace navigation
+              </DialogDescription>
+              <p className="mb-3 px-3 text-[10px] font-bold uppercase tracking-[0.15em] text-muted">
+                {user.role.replaceAll("_", " ")}
+              </p>
+              <nav aria-label="Main navigation" className="space-y-1">
+                {links(items)}
+                {administration.length > 0 && (
+                  <>
+                    <p className="px-3 pb-2 pt-5 text-[10px] font-bold uppercase tracking-[0.15em] text-muted">
+                      Administration
+                    </p>
+                    {links(administration)}
+                  </>
+                )}
+                <div className="mt-5 border-t border-line pt-3">
+                  {links([
+                    {
+                      to: "/security",
+                      label: "Account Security",
+                      icon: ShieldCheck,
+                    },
+                  ])}
+                  <Button
+                    variant="ghost"
+                    className="mt-2 w-full justify-start px-3"
+                    onClick={() => void signOut()}
+                    disabled={busy}
+                  >
+                    <LogOut aria-hidden="true" />
+                    {busy ? "Signing out…" : "Sign out"}
+                  </Button>
+                </div>
+              </nav>
+            </DialogContent>
+          </Dialog>
           <div className="lg:pl-64">
             <div className="hidden items-center justify-between border-b border-line bg-surface px-8 py-4 lg:flex">
               <div>

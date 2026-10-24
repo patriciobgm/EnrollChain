@@ -30,10 +30,18 @@ function PdfPages({ id, filename }: PdfProps) {
   const [width, setWidth] = useState(600);
   const canvas = useRef<HTMLCanvasElement>(null);
   const container = useRef<HTMLDivElement>(null);
+  const pan = useRef<{
+    x: number;
+    y: number;
+    left: number;
+    top: number;
+    vertical: HTMLElement;
+  } | null>(null);
+  const [dragging, setDragging] = useState(false);
   useEffect(() => {
     if (!container.current) return;
     const observer = new ResizeObserver(([entry]) =>
-      setWidth(Math.max(200, entry.contentRect.width)),
+      setWidth(Math.max(200, Math.floor(entry.contentRect.width))),
     );
     observer.observe(container.current);
     return () => observer.disconnect();
@@ -182,12 +190,64 @@ function PdfPages({ id, filename }: PdfProps) {
       {!pdf && !error && <LoadingState label="Opening private PDF…" />}
       <div
         ref={container}
-        className="max-h-[65dvh] overflow-auto rounded-xl border border-line bg-black/5 p-2"
+        className={`relative overflow-x-auto rounded-xl border border-line bg-black/5 p-2 ${dragging ? "cursor-grabbing select-none" : "cursor-grab"}`}
+        onPointerDown={(event) => {
+          if (event.pointerType !== "mouse" || event.button !== 0) return;
+          const target = event.currentTarget;
+          let vertical: HTMLElement = target;
+          for (
+            let node = target.parentElement;
+            node;
+            node = node.parentElement
+          ) {
+            if (
+              /(auto|scroll)/.test(getComputedStyle(node).overflowY) &&
+              node.scrollHeight > node.clientHeight
+            ) {
+              vertical = node;
+              break;
+            }
+          }
+          pan.current = {
+            x: event.clientX,
+            y: event.clientY,
+            left: target.scrollLeft,
+            top: vertical.scrollTop,
+            vertical,
+          };
+          target.setPointerCapture(event.pointerId);
+          setDragging(true);
+          event.preventDefault();
+        }}
+        onPointerMove={(event) => {
+          const start = pan.current;
+          if (!start) return;
+          event.currentTarget.scrollLeft =
+            start.left - (event.clientX - start.x);
+          start.vertical.scrollTop = start.top - (event.clientY - start.y);
+        }}
+        onPointerUp={(event) => {
+          pan.current = null;
+          setDragging(false);
+          if (event.currentTarget.hasPointerCapture(event.pointerId))
+            event.currentTarget.releasePointerCapture(event.pointerId);
+        }}
+        onPointerCancel={() => {
+          pan.current = null;
+          setDragging(false);
+        }}
+        onLostPointerCapture={() => {
+          pan.current = null;
+          setDragging(false);
+        }}
         tabIndex={0}
         aria-label="Scrollable PDF page"
       >
         {rendering && (
-          <p role="status" className="p-2 text-sm">
+          <p
+            role="status"
+            className="pointer-events-none absolute left-2 top-2 z-10 rounded-lg bg-surface/95 p-2 text-sm shadow-sm"
+          >
             Rendering page…
           </p>
         )}
@@ -238,7 +298,7 @@ export function PdfPreviewDialog(props: PdfProps) {
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-5xl">
-        <DialogTitle>Document preview</DialogTitle>
+        <DialogTitle>Document Preview</DialogTitle>
         <DialogDescription>{props.filename}</DialogDescription>
         <div className="mt-5">
           <PdfPages {...props} />

@@ -7,7 +7,7 @@ import {
 import { SortableHeader } from "../components/SortableHeader";
 import { Pagination } from "../components/Pagination";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { EnrollmentFilters } from "../components/EnrollmentFilters";
 import { ErrorMessage, Field, Page } from "../components/Form";
@@ -25,6 +25,7 @@ import { useAuth } from "../lib/auth";
 export function SectionsPage() {
   const { user } = useAuth();
   const cache = useQueryClient();
+  const rosterTrigger = useRef<HTMLButtonElement>(null);
   const [page, setPage] = useState(1);
   const [ordering, setOrdering] = useState("name");
   const [rosterPage, setRosterPage] = useState(1);
@@ -97,26 +98,28 @@ export function SectionsPage() {
         user?.role === "CLASS_ADVISER" ? "My Sections" : "Section management"
       }
     >
-      <EnrollmentFilters
-        value={filters}
-        onChange={(value) => {
-          setFilters(value);
-          setPage(1);
-          setRosterPage(1);
-        }}
-      />
-      {user?.role === "ADMINISTRATOR" && (
-        <button
-          className="action mb-5"
-          onClick={() => {
-            setEditing(null);
-            setTrack("");
-            save.reset();
+      <div className="mb-5 flex flex-wrap items-center gap-3">
+        <EnrollmentFilters
+          value={filters}
+          onChange={(value) => {
+            setFilters(value);
+            setPage(1);
+            setRosterPage(1);
           }}
-        >
-          Create section
-        </button>
-      )}
+        />
+        {user?.role === "ADMINISTRATOR" && (
+          <button
+            className="action"
+            onClick={() => {
+              setEditing(null);
+              setTrack("");
+              save.reset();
+            }}
+          >
+            Create section
+          </button>
+        )}
+      </div>
       <ErrorMessage error={query.error} />
       {query.isPending && <LoadingState label="Loading sections…" />}
       {query.data?.count === 0 && <p className="panel">No sections found.</p>}
@@ -272,7 +275,8 @@ export function SectionsPage() {
             <div className="flex flex-wrap gap-3">
               <button
                 className="action secondary"
-                onClick={() => {
+                onClick={(event) => {
+                  rosterTrigger.current = event.currentTarget;
                   setSelected(s.id);
                   setRosterPage(1);
                 }}
@@ -303,18 +307,32 @@ export function SectionsPage() {
           busy={query.isFetching}
         />
       )}
-      {selected !== null && (
-        <section className="panel mt-6">
-          <h2 className="mb-4 text-xl font-bold">
+      <Dialog
+        open={selected !== null}
+        onOpenChange={(open) => {
+          if (!open) setSelected(null);
+        }}
+      >
+        <DialogContent
+          className="flex max-h-[90dvh] max-w-6xl flex-col overflow-hidden"
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            rosterTrigger.current?.focus();
+          }}
+        >
+          <DialogTitle className="mb-4">
             {query.data?.results.find((s) => s.id === selected)?.name ??
               "Section"}{" "}
-            roster
-          </h2>
+            Roster
+          </DialogTitle>
+          <DialogDescription className="sr-only">
+            Learners assigned to this section
+          </DialogDescription>
           <ErrorMessage error={roster.error} />
           {roster.isPending && <LoadingState label="Loading roster…" />}
           {roster.data?.count === 0 && <p>No learners match these filters.</p>}
           <div
-            className="overflow-auto"
+            className="min-h-0 overflow-auto"
             tabIndex={0}
             role="region"
             aria-label="Section roster"
@@ -387,8 +405,8 @@ export function SectionsPage() {
               busy={roster.isFetching}
             />
           )}
-        </section>
-      )}
+        </DialogContent>
+      </Dialog>
     </Page>
   );
 }

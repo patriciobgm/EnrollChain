@@ -146,3 +146,32 @@ The nine panel items were compared with the current implementation. Existing fun
 - Backups: `.client-test/backups/panel-20261024/database.dump` and `volumes.tar.gz`. Credentials remain private in `.client-test/LOGIN_ACCOUNTS.md`. Synthetic upload/comparison samples: `.client-test/EnrollChain-Test-Samples.zip`.
 
 The client stack is running at `http://localhost:8080`; web/backend/database/chain are healthy and the worker is running. Only loopback port 8080 is published. Public port forwarding was not configured or verified in this run. For phone QR testing, generate the QR while using the actual forwarded portal URL. No commit or push was performed for this update.
+
+## Workspace Usability Validation — October 24, 2026
+
+- Account cards dismiss on outside pointer interaction, Escape and focus leaving the card. Mobile navigation uses a backdrop/focus-contained drawer. Header and workspace spacing were checked at 320, 390 and 768 pixels.
+- Secondary filters use Apply/Cancel dialogs; results remain directly below compact controls. Phone reports show key fields with a full-row detail dialog. Section rosters and configuration create/edit forms use dialogs with focus returned to their originating buttons.
+- PDF preview uses one vertical scrolling region; zoom can still require horizontal panning. Security wording is `Two-Factor Authentication: Not Enabled`.
+- Blockchain browsing uses a 20-row cursor API, filter controls, exact hash lookup and row detail dialogs. The new index migration was tested forward/backward and applied to Docker.
+- **117 backend tests passed** against isolated PostgreSQL and a real EVM. **20 frontend unit tests and 13 browser workflow tests passed**, plus **43 deployed Docker role/page checks** and the dedicated responsive-layout check. Lint, production build, system/schema/migration/Compose checks passed.
+- An isolated **100,000-record** PostgreSQL/API smoke benchmark returned at most 20 rows per page with no full-table count. First/next page, status filter, exact hash lookup and oldest-first checks passed. Observed local timings were about 37 ms for the first request and 1–2 ms for subsequent checks; these are not production load or latency guarantees.
+- Client database/files were backed up under `.client-test/backups/ui-20261024/`. Only backend/worker/web were replaced; the running client database and blockchain node were preserved. The benchmark database and temporary chain were removed.
+- Docker remains available at `http://localhost:8080`. Refresh the browser to load the new assets. These changes are included in the October 24 usability checkpoint.
+
+Reproduce the deployed UI checks with `node scripts/client-smoke.mjs` and `node scripts/check-client-layout.mjs`. Both use the existing private Docker credentials and save screenshots under `.client-test/screenshots/`.
+
+### Document and Configuration UI Refinements — 24 October 2026
+
+- PDF rendering indicators no longer change layout height. Dialog scrollbars reserve space to avoid resize feedback during zoom. Mouse dragging pans the PDF horizontally and its enclosing scroll region vertically; touch and keyboard scrolling remain available.
+- Document Submission History uses requirement names as headings, filenames as secondary text, and groups Preview PDF / Download PDF together.
+- Enrollment History opens as an accessible timeline dialog. Audit Event Details display labeled values instead of raw JSON.
+- Configuration dialogs use full-width names, bordered status controls, positive-integer capacity inputs, optional-field labels, and a separated action footer.
+- Verification Details displays its transaction status in a labeled summary row.
+- Managed-user API lists and searches exclude superusers for every role, including superusers themselves. This does not delete accounts or alter sign-in or personal security settings.
+- Read-only Docker regression: `node scripts/check-client-document-ui.mjs` checks an existing SF9 (or another stored PDF if none exists), stable 75% zoom, two-axis mouse panning, history headings, and the Enrollment History dialog. It reads the private local credential sheet.
+
+Validation for these refinements: Ruff, Django system check, migration consistency, strict OpenAPI validation, frontend lint and production build passed; 116 backend tests passed (2 environment-dependent skips), 20 frontend tests passed, and 13 Playwright tests passed. After rebuilding backend/worker/web, the read-only stored-PDF check passed at 75% with horizontal and vertical mouse panning. Docker layout checks passed at 320, 390 and 768 pixels. The existing database and blockchain node were not restarted.
+
+Further UI follow-up: styled native file chooser buttons to align with shared controls; placed Compare PDF alongside its input on desktop; replaced the scrolling academic category strip with icon/count tiles and searchable configuration cards; expanded Add Learner into responsive full-width field groups; formatted audit report identifiers such as `early-enrollment` as “Early Enrollment” without changing stored metadata. Frontend lint, 20 unit tests, 13 browser tests and production build passed. Docker desktop/mobile visual checks found no page-width overflow at 1440/390 pixels. Blockchain listing remains sortable by Recorded only; Event and Status remain filters.
+
+Public-page and navigation refinements: back/return controls share an outlined arrow-button component and title-case labels. The four requested explanatory Home passages were removed. Login uses a responsive form with password visibility controls. Home and login share the original transparent school PNG with its empty top margin cropped through CSS; both retain the location caption. The Home headline aligns with the visible image top. Final visual checks passed at 1440, 390 and 320 pixels; frontend lint, 20 unit tests and production build passed. The preceding login/navigation workflow run passed all 13 browser tests.

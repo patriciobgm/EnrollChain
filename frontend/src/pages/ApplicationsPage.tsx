@@ -1,4 +1,5 @@
-import { ArrowLeft } from "lucide-react";
+import { FilterDialog } from "../components/FilterDialog";
+import { BackLink } from "../components/BackNavigation";
 import { SortableHeader } from "../components/SortableHeader";
 import { ApplicantEnrollmentPage } from "./ApplicantEnrollmentPage";
 import { useQuery } from "@tanstack/react-query";
@@ -14,10 +15,9 @@ export function EnrollmentDetailPage() {
   const { id } = useParams();
   return (
     <Page title="Enrollment processing">
-      <Link to="/applications" className="action secondary mb-5 gap-2">
-        <ArrowLeft size={16} aria-hidden="true" />
+      <BackLink to="/applications" className="mb-5">
         Back to Early Enrollment
-      </Link>
+      </BackLink>
       {id && <EnrollmentPanel id={id} />}
     </Page>
   );
@@ -61,7 +61,7 @@ export function ApplicationsPage() {
           : "Early Enrollment"
       }
     >
-      <div className="mb-5 flex flex-wrap items-end gap-4">
+      <div className="mb-5 flex flex-wrap items-end gap-3 [&>.field]:basis-full sm:[&>.field]:basis-auto sm:[&>.field]:grow">
         <Field label="Search learner / reference">
           <input
             value={search}
@@ -72,61 +72,72 @@ export function ApplicationsPage() {
             type="search"
           />
         </Field>
-        <Field label="Grade Level">
-          <select
-            value={grade}
-            onChange={(e) => {
-              setGrade(e.target.value);
-              setPage(1);
-            }}
-          >
-            <option value="">All Grades</option>
-            <option value="11">Grade 11</option>
-            <option value="12">Grade 12</option>
-          </select>
-        </Field>
-        <Field label="Learner Classification">
-          <select
-            value={classification}
-            onChange={(e) => {
-              setClassification(e.target.value);
-              setPage(1);
-            }}
-          >
-            <option value="">All Classifications</option>
-            <option value="NEW">New</option>
-            <option value="RETURNING">Balik-Aral</option>
-            <option value="TRANSFEREE">Transferee</option>
-          </select>
-        </Field>
-        <Field label="Enrollment stage">
-          <select
-            value={status}
-            onChange={(e) => {
-              setStatus(e.target.value);
-              setPage(1);
-            }}
-          >
-            <option value="">All stages</option>
-            {[
-              "DRAFT",
-              "FOR_DOCUMENT_VERIFICATION",
-              "FOR_RESUBMISSION",
-              "FOR_EVALUATION",
-              "QUALIFIED",
-              "NOT_QUALIFIED",
-              "PRE_ENROLLED",
-              "SECTION_ASSIGNED",
-              "FOR_LIS_REGISTRATION",
-              "OFFICIALLY_ENROLLED",
-              "REJECTED",
-            ].map((s) => (
-              <option key={s} value={s}>
-                {readable(s)}
-              </option>
-            ))}
-          </select>
-        </Field>
+        <FilterDialog
+          value={{ grade_level: grade, classification, status }}
+          onApply={(value) => {
+            setGrade(value.grade_level ?? "");
+            setClassification(value.classification ?? "");
+            setStatus(value.status ?? "");
+            setPage(1);
+          }}
+        >
+          {(draft, change) => (
+            <>
+              <Field label="Grade Level">
+                <select
+                  value={draft.grade_level ?? ""}
+                  onChange={(e) => {
+                    change({ ...draft, grade_level: e.target.value });
+                  }}
+                >
+                  <option value="">All Grades</option>
+                  <option value="11">Grade 11</option>
+                  <option value="12">Grade 12</option>
+                </select>
+              </Field>
+              <Field label="Learner Classification">
+                <select
+                  value={draft.classification ?? ""}
+                  onChange={(e) => {
+                    change({ ...draft, classification: e.target.value });
+                  }}
+                >
+                  <option value="">All Classifications</option>
+                  <option value="NEW">New</option>
+                  <option value="RETURNING">Balik-Aral</option>
+                  <option value="TRANSFEREE">Transferee</option>
+                </select>
+              </Field>
+              <Field label="Enrollment stage">
+                <select
+                  value={draft.status ?? ""}
+                  onChange={(e) => {
+                    change({ ...draft, status: e.target.value });
+                  }}
+                >
+                  <option value="">All stages</option>
+                  {[
+                    "DRAFT",
+                    "FOR_DOCUMENT_VERIFICATION",
+                    "FOR_RESUBMISSION",
+                    "FOR_EVALUATION",
+                    "QUALIFIED",
+                    "NOT_QUALIFIED",
+                    "PRE_ENROLLED",
+                    "SECTION_ASSIGNED",
+                    "FOR_LIS_REGISTRATION",
+                    "OFFICIALLY_ENROLLED",
+                    "REJECTED",
+                  ].map((s) => (
+                    <option key={s} value={s}>
+                      {readable(s)}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            </>
+          )}
+        </FilterDialog>
         {can(user, "add_application") &&
           (user?.role !== "LEARNER" || unfinished.data?.count === 0) && (
             <Link className="action" to="/applications/new">

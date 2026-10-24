@@ -1,7 +1,22 @@
+import {
+  CalendarDays,
+  CalendarRange,
+  GitBranch,
+  GraduationCap,
+  FileCheck2,
+  ListChecks,
+  Plus,
+} from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  DialogDescription,
+} from "../components/ui/Dialog";
 import { readable } from "../lib/admissions";
 import { Pagination } from "../components/Pagination";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import { ErrorMessage, Field, Page } from "../components/Form";
 import { Button } from "../components/ui/Button";
 import { LoadingState } from "../components/ui/LoadingState";
@@ -25,7 +40,7 @@ type ConfigurationRecord = {
 interface ConfigField {
   name: string;
   label: string;
-  type?: "date" | "boolean";
+  type?: "date" | "boolean" | "number";
   options?: readonly string[];
   relation?: Resource;
   optional?: boolean;
@@ -36,19 +51,23 @@ const resources: Record<
   { label: string; model: string; fields: ConfigField[] }
 > = {
   tracks: {
-    label: "Tracks & capacities",
+    label: "Tracks & Capacities",
     model: "trackconfiguration",
     fields: [
       { name: "code", label: "Stable track code" },
       { name: "name", label: "Track name" },
       { name: "category", label: "Category", options: ["ACADEMIC", "TECHPRO"] },
-      { name: "default_section_capacity", label: "Default section capacity" },
+      {
+        name: "default_section_capacity",
+        label: "Default Section Capacity",
+        type: "number",
+      },
       { name: "active", label: "Active", type: "boolean" },
       { name: "reason", label: "Reason for capacity override", optional: true },
     ],
   },
   "school-years": {
-    label: "School years",
+    label: "School Years",
     model: "schoolyear",
     fields: [
       { name: "name", label: "School year name" },
@@ -57,7 +76,7 @@ const resources: Record<
     ],
   },
   "admission-periods": {
-    label: "Admission periods",
+    label: "Admission Periods",
     model: "admissionperiod",
     fields: [
       { name: "name", label: "Period name" },
@@ -68,7 +87,7 @@ const resources: Record<
     ],
   },
   programs: {
-    label: "Programs / specializations",
+    label: "Programs / Specializations",
     model: "program",
     fields: [
       { name: "name", label: "Program or specialization name" },
@@ -78,12 +97,12 @@ const resources: Record<
     ],
   },
   requirements: {
-    label: "Requirement catalog",
+    label: "Requirement Catalog",
     model: "requirement",
     fields: [{ name: "name", label: "Requirement name" }],
   },
   "requirement-rules": {
-    label: "Requirement assignments",
+    label: "Requirement Assignments",
     model: "requirementrule",
     fields: [
       { name: "requirement", label: "Requirement", relation: "requirements" },
@@ -114,10 +133,20 @@ const resources: Record<
     ],
   },
 };
+const areaIcons = {
+  "school-years": CalendarDays,
+  "admission-periods": CalendarRange,
+  tracks: GitBranch,
+  programs: GraduationCap,
+  requirements: FileCheck2,
+  "requirement-rules": ListChecks,
+};
 export function ConfigurationPage() {
   const { user } = useAuth();
   const cache = useQueryClient();
+  const formTrigger = useRef<HTMLButtonElement>(null);
   const [page, setPage] = useState(1);
+  const [search, setSearch] = useState("");
   const [resource, setResource] = useState<Resource>("school-years");
   const [editing, setEditing] = useState<ConfigurationRecord | null>(null);
   const [showForm, setShowForm] = useState(false);
@@ -179,35 +208,69 @@ export function ConfigurationPage() {
       )?.name ?? "Period";
     return `${requirement} · ${period}`;
   }
+  const records =
+    query.data?.[resource].filter((record) =>
+      label(record).toLowerCase().includes(search.trim().toLowerCase()),
+    ) ?? [];
   if (!allowed)
     return (
-      <Page title="Academic configuration">
+      <Page title="Academic Configuration">
         <p role="alert">Administrator access is required.</p>
       </Page>
     );
   return (
-    <Page title="Academic configuration">
-      <div
-        className="mb-6 flex flex-wrap gap-2"
-        role="group"
-        aria-label="Configuration area"
-      >
-        {(Object.keys(resources) as Resource[]).map((key) => (
-          <Button
-            key={key}
-            variant={resource === key ? "primary" : "outline"}
-            aria-pressed={resource === key}
-            onClick={() => {
-              setResource(key);
+    <Page title="Academic Configuration">
+      <div className="mb-4 sm:hidden">
+        <Field label="Configuration Area">
+          <select
+            value={resource}
+            onChange={(e) => {
+              setResource(e.target.value as Resource);
               setPage(1);
-              setShowForm(false);
+              setSearch("");
               setEditing(null);
+              setShowForm(false);
               save.reset();
             }}
           >
-            {resources[key].label}
-          </Button>
-        ))}
+            {(Object.keys(resources) as Resource[]).map((key) => (
+              <option key={key} value={key}>
+                {resources[key].label}
+              </option>
+            ))}
+          </select>
+        </Field>
+      </div>
+      <div
+        className="mb-6 hidden grid-cols-2 gap-3 sm:grid xl:grid-cols-3"
+        role="group"
+        aria-label="Configuration area"
+      >
+        {(Object.keys(resources) as Resource[]).map((key) => {
+          const Icon = areaIcons[key];
+          return (
+            <Button
+              key={key}
+              className="h-auto min-h-20 justify-start whitespace-normal px-4 py-3 text-left"
+              variant={resource === key ? "primary" : "outline"}
+              aria-pressed={resource === key}
+              onClick={() => {
+                setResource(key);
+                setPage(1);
+                setSearch("");
+                setShowForm(false);
+                setEditing(null);
+                save.reset();
+              }}
+            >
+              <Icon aria-hidden="true" className="size-5 shrink-0" />
+              <span className="flex-1">{resources[key].label}</span>
+              <span className="rounded-md bg-surface/15 px-2 py-1 text-xs tabular-nums">
+                {query.data?.[key].length ?? "—"}
+              </span>
+            </Button>
+          );
+        })}
       </div>
       <ErrorMessage error={query.error} />
       {query.isPending && (
@@ -218,31 +281,49 @@ export function ConfigurationPage() {
           <h2 className="font-display text-2xl">{definition.label}</h2>
           {hasPermission(user, `admissions.add_${definition.model}`) && (
             <Button
-              onClick={() => {
+              onClick={(event) => {
+                formTrigger.current = event.currentTarget;
                 setEditing(null);
                 setShowForm(true);
                 save.reset();
               }}
             >
-              Add configuration
+              <Plus aria-hidden="true" /> Add configuration
             </Button>
           )}
         </div>
-        {query.data?.[resource].length === 0 && (
-          <p className="text-muted">No records configured yet.</p>
+        <div className="mb-5 max-w-md">
+          <Field label="Search Configuration">
+            <input
+              type="search"
+              value={search}
+              onChange={(event) => {
+                setSearch(event.target.value);
+                setPage(1);
+              }}
+              placeholder={`Search ${definition.label.toLowerCase()}`}
+            />
+          </Field>
+        </div>
+        {query.data && records.length === 0 && (
+          <p className="text-muted">
+            {search
+              ? "No matching configuration."
+              : "No records configured yet."}
+          </p>
         )}
-        <ul className="divide-y divide-line">
-          {query.data?.[resource]
-            .slice((page - 1) * 20, page * 20)
-            .map((record) => (
-              <li
-                key={record.id ?? record.code}
-                className="flex flex-wrap items-center justify-between gap-4 py-4"
-              >
-                <div className="min-w-0">
-                  <p className="font-semibold">{label(record)}</p>
-                  <p className="mt-1 text-sm text-muted">
-                    {resource === "requirement-rules"
+        <ul className="grid gap-4 lg:grid-cols-2">
+          {records.slice((page - 1) * 20, page * 20).map((record) => (
+            <li
+              key={record.id ?? record.code}
+              className="flex min-w-0 flex-wrap items-start justify-between gap-4 rounded-xl border border-line bg-canvas/40 p-4"
+            >
+              <div className="min-w-0 flex-1">
+                <p className="font-semibold">{label(record)}</p>
+                <p className="mt-1 text-sm text-muted">
+                  {resource === "tracks"
+                    ? `${readable(String(record.category))} · Capacity: ${record.default_section_capacity} · ${record.active ? "Active" : "Inactive"}`
+                    : resource === "requirement-rules"
                       ? `${readable(String(record.classification))} · ${record.grade_level ? `Grade ${record.grade_level}` : "Both grades"} · ${record.track ? String(record.track).replaceAll("_", " ") : "All tracks"} · ${record.is_required ? "Required" : "Optional"}`
                       : record.track
                         ? String(record.track).replaceAll("_", " ")
@@ -253,117 +334,138 @@ export function ConfigurationPage() {
                             : resource === "requirements"
                               ? "PDF · 30 MiB max"
                               : ""}
-                    {typeof record.is_active === "boolean"
-                      ? ` · ${record.is_active ? "Active" : "Inactive"}`
-                      : ""}
-                  </p>
-                </div>
-                {hasPermission(
-                  user,
-                  `admissions.change_${definition.model}`,
-                ) && (
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setEditing(record);
-                      setShowForm(true);
-                      save.reset();
-                    }}
-                  >
-                    Edit
-                  </Button>
-                )}
-              </li>
-            ))}
+                  {typeof record.is_active === "boolean"
+                    ? ` · ${record.is_active ? "Active" : "Inactive"}`
+                    : ""}
+                </p>
+              </div>
+              {hasPermission(user, `admissions.change_${definition.model}`) && (
+                <Button
+                  variant="outline"
+                  onClick={(event) => {
+                    formTrigger.current = event.currentTarget;
+                    setEditing(record);
+                    setShowForm(true);
+                    save.reset();
+                  }}
+                >
+                  Edit
+                </Button>
+              )}
+            </li>
+          ))}
         </ul>
         {query.data && (
-          <Pagination
-            count={query.data[resource].length}
-            page={page}
-            onChange={setPage}
-          />
+          <Pagination count={records.length} page={page} onChange={setPage} />
         )}
       </section>
-      {showForm && (
-        <form
-          className="panel space-y-5"
-          key={`${resource}-${editing?.id ?? editing?.code ?? "new"}`}
-          onSubmit={submit}
+      <Dialog
+        open={showForm}
+        onOpenChange={(open) => {
+          if (!save.isPending) setShowForm(open);
+        }}
+      >
+        <DialogContent
+          className="max-w-2xl"
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            formTrigger.current?.focus();
+          }}
         >
-          <h2 className="text-xl font-bold">
-            {editing ? "Edit" : "Add"} · {definition.label}
-          </h2>
-          <div className="grid gap-4 sm:grid-cols-2">
-            {definition.fields.map((field) =>
-              field.type === "boolean" ? (
-                <label
-                  key={field.name}
-                  className="flex min-h-11 items-center gap-3"
-                >
-                  <input
-                    type="checkbox"
-                    name={field.name}
-                    defaultChecked={
-                      editing ? Boolean(editing[field.name]) : true
-                    }
-                  />
-                  {field.label}
-                </label>
-              ) : (
-                <Field key={field.name} label={field.label}>
-                  {field.options || field.relation ? (
-                    <select
-                      name={field.name}
-                      required={!field.optional}
-                      defaultValue={String(editing?.[field.name] ?? "")}
-                    >
-                      <option value="">
-                        {field.optional
-                          ? "All / not limited"
-                          : "Choose an option"}
-                      </option>
-                      {field.relation
-                        ? query.data?.[field.relation].map((item) => (
-                            <option
-                              key={item.id ?? item.code}
-                              value={item.id ?? item.code}
-                            >
-                              {item.name}
-                            </option>
-                          ))
-                        : field.options?.map((value) => (
-                            <option key={value} value={value}>
-                              {readable(value)}
-                            </option>
-                          ))}
-                    </select>
-                  ) : (
+          <DialogTitle>
+            {editing ? "Edit Configuration" : "Add Configuration"}
+          </DialogTitle>
+          <DialogDescription>{definition.label}</DialogDescription>
+          <form
+            className="mt-5 space-y-5"
+            key={`${resource}-${editing?.id ?? editing?.code ?? "new"}`}
+            onSubmit={submit}
+          >
+            <div className="grid gap-4 sm:grid-cols-2">
+              {definition.fields.map((field) =>
+                field.type === "boolean" ? (
+                  <label
+                    key={field.name}
+                    className="flex min-h-14 items-center gap-3 rounded-xl border border-line bg-canvas px-4 sm:col-span-2"
+                  >
                     <input
+                      type="checkbox"
                       name={field.name}
-                      type={field.type ?? "text"}
-                      required={!field.optional}
-                      defaultValue={String(editing?.[field.name] ?? "")}
+                      defaultChecked={
+                        editing ? Boolean(editing[field.name]) : true
+                      }
                     />
-                  )}
-                </Field>
-              ),
-            )}
-          </div>
-          <ErrorMessage error={save.error} />
-          <div className="flex gap-3">
-            <Button type="submit" disabled={save.isPending}>
-              {save.isPending ? "Saving…" : "Save configuration"}
-            </Button>
-            <Button
-              variant="ghost"
-              disabled={save.isPending}
-              onClick={() => setShowForm(false)}
-            >
-              Cancel
-            </Button>
-          </div>
-        </form>
-      )}
+                    {field.label}
+                  </label>
+                ) : (
+                  <div
+                    key={field.name}
+                    className={
+                      field.name === "name" || field.name === "reason"
+                        ? "sm:col-span-2"
+                        : ""
+                    }
+                  >
+                    <Field
+                      label={`${field.label.replace(/\b\w/g, (letter) => letter.toUpperCase())}${field.optional ? " (Optional)" : ""}`}
+                    >
+                      {field.options || field.relation ? (
+                        <select
+                          name={field.name}
+                          required={!field.optional}
+                          defaultValue={String(editing?.[field.name] ?? "")}
+                        >
+                          <option value="">
+                            {field.optional
+                              ? "All / not limited"
+                              : "Choose an option"}
+                          </option>
+                          {field.relation
+                            ? query.data?.[field.relation].map((item) => (
+                                <option
+                                  key={item.id ?? item.code}
+                                  value={item.id ?? item.code}
+                                >
+                                  {item.name}
+                                </option>
+                              ))
+                            : field.options?.map((value) => (
+                                <option key={value} value={value}>
+                                  {readable(value)}
+                                </option>
+                              ))}
+                        </select>
+                      ) : (
+                        <input
+                          name={field.name}
+                          type={field.type ?? "text"}
+                          min={field.type === "number" ? 1 : undefined}
+                          step={field.type === "number" ? 1 : undefined}
+                          required={!field.optional}
+                          defaultValue={String(editing?.[field.name] ?? "")}
+                        />
+                      )}
+                    </Field>
+                  </div>
+                ),
+              )}
+            </div>
+            <ErrorMessage error={save.error} />
+            <div className="flex flex-wrap items-center justify-end gap-3 border-t border-line pt-5">
+              <Button type="submit" disabled={save.isPending}>
+                {save.isPending ? "Saving…" : "Save Configuration"}
+              </Button>
+              <Button
+                variant="ghost"
+                disabled={save.isPending}
+                onClick={() => setShowForm(false)}
+              >
+                Cancel
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </Page>
   );
 }

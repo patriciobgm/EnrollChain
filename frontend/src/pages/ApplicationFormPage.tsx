@@ -1,4 +1,4 @@
-import { ArrowLeft } from "lucide-react";
+import { BackLink } from "../components/BackNavigation";
 import { LoadingState } from "../components/ui/LoadingState";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
@@ -102,10 +102,9 @@ export function ApplicationFormPage() {
   }
   return (
     <Page title="New Application">
-      <Link to="/applications" className="action secondary mb-6 gap-2">
-        <ArrowLeft size={16} aria-hidden="true" />
+      <BackLink to="/applications" className="mb-5">
         Back to Early Enrollment
-      </Link>
+      </BackLink>
       <ErrorMessage error={error} />
       {pending && <LoadingState label="Loading application choices…" />}
       {!pending && !error && (

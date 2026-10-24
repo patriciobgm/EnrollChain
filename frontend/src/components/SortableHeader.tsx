@@ -4,7 +4,9 @@ export function SortableHeader({
   column,
   ordering,
   onSort,
+  className = "",
 }: {
+  className?: string;
   label: string;
   column: string;
   ordering: string;
@@ -16,7 +18,7 @@ export function SortableHeader({
   return (
     <th
       scope="col"
-      className="p-3 text-left"
+      className={`p-3 text-left ${className}`}
       aria-sort={active ? (descending ? "descending" : "ascending") : "none"}
     >
       <button

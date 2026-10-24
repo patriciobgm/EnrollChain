@@ -1,5 +1,6 @@
+import { FilterDialog } from "../components/FilterDialog";
 import { useQuery } from "@tanstack/react-query";
-import { useState, type FormEvent } from "react";
+import { useState } from "react";
 import { ErrorMessage, Field, Page } from "../components/Form";
 import { Button } from "../components/ui/Button";
 import { LoadingState } from "../components/ui/LoadingState";
@@ -16,6 +17,53 @@ interface AuditEvent {
   ip_address: string | null;
   metadata: Record<string, unknown>;
 }
+function EventValue({ value }: { value: unknown }) {
+  if (value === null || value === undefined || value === "")
+    return <span className="text-muted">Not Set</span>;
+  if (Array.isArray(value))
+    return (
+      <ul className="space-y-2">
+        {value.map((item, index) => (
+          <li key={index}>
+            <EventValue value={item} />
+          </li>
+        ))}
+      </ul>
+    );
+  if (typeof value === "object")
+    return (
+      <dl className="space-y-3">
+        {Object.entries(value).map(([key, item]) => (
+          <div
+            key={key}
+            className="grid gap-1 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]"
+          >
+            <dt className="font-medium text-muted">
+              {key
+                .replace(/[_-]/g, " ")
+                .replace(/\b\w/g, (letter) => letter.toUpperCase())}
+            </dt>
+            <dd className="min-w-0 break-words">
+              <EventValue
+                value={
+                  key === "report" && typeof item === "string"
+                    ? item
+                        .replace(/[_-]/g, " ")
+                        .replace(/\b\w/g, (letter) => letter.toUpperCase())
+                    : item
+                }
+              />
+            </dd>
+          </div>
+        ))}
+      </dl>
+    );
+  return (
+    <span className="whitespace-pre-wrap">
+      {typeof value === "boolean" ? (value ? "Yes" : "No") : String(value)}
+    </span>
+  );
+}
 export function AuditPage() {
   const { user } = useAuth();
   const allowed =
@@ -30,15 +78,6 @@ export function AuditPage() {
       ),
     enabled: allowed,
   });
-  function search(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setPage(1);
-    const params = new URLSearchParams();
-    new FormData(event.currentTarget).forEach((value, key) => {
-      if (String(value).trim()) params.set(key, String(value).trim());
-    });
-    setFilters(params.toString());
-  }
   if (!allowed)
     return (
       <Page title="Audit Logs">
@@ -47,29 +86,38 @@ export function AuditPage() {
     );
   return (
     <Page title="Audit Logs">
-      <form
-        onSubmit={search}
-        className="panel mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
-      >
-        {[
-          ["actor", "Actor email"],
-          ["action", "Action"],
-          ["entity_id", "Record ID"],
-          ["from", "From date"],
-          ["to", "To date"],
-        ].map(([name, label]) => (
-          <Field label={label} key={name}>
-            <input
-              name={name}
-              type={name === "from" || name === "to" ? "date" : "text"}
-              maxLength={150}
-            />
-          </Field>
-        ))}
-        <Button className="self-end" type="submit">
-          Apply filters
-        </Button>
-      </form>
+      <div className="mb-5">
+        <FilterDialog
+          value={Object.fromEntries(new URLSearchParams(filters))}
+          onApply={(values) => {
+            setFilters(new URLSearchParams(values).toString());
+            setPage(1);
+          }}
+        >
+          {(draft, change) => (
+            <>
+              {[
+                ["actor", "Actor Email"],
+                ["action", "Action"],
+                ["entity_id", "Record ID"],
+                ["from", "From Date"],
+                ["to", "To Date"],
+              ].map(([name, label]) => (
+                <Field label={label} key={name}>
+                  <input
+                    type={name === "from" || name === "to" ? "date" : "text"}
+                    value={draft[name] ?? ""}
+                    maxLength={150}
+                    onChange={(e) =>
+                      change({ ...draft, [name]: e.target.value })
+                    }
+                  />
+                </Field>
+              ))}
+            </>
+          )}
+        </FilterDialog>
+      </div>
       <ErrorMessage error={query.error} />
       {query.isPending && <LoadingState label="Loading audit events…" />}
       {query.data && (
@@ -103,11 +151,11 @@ export function AuditPage() {
                 {Object.keys(event.metadata).length > 0 && (
                   <details className="mt-3 text-sm">
                     <summary className="cursor-pointer py-2">
-                      Event details
+                      Event Details
                     </summary>
-                    <pre className="overflow-auto rounded-lg bg-canvas p-3 text-xs">
-                      {JSON.stringify(event.metadata, null, 2)}
-                    </pre>
+                    <div className="rounded-xl border border-line bg-canvas p-4">
+                      <EventValue value={event.metadata} />
+                    </div>
                   </details>
                 )}
               </li>

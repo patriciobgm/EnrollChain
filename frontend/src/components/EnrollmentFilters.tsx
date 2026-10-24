@@ -1,3 +1,4 @@
+import { FilterDialog } from "./FilterDialog";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "../lib/api";
 import {
@@ -9,7 +10,9 @@ import { Field } from "./Form";
 export function EnrollmentFilters({
   value,
   onChange,
+  includeSection = false,
 }: {
+  includeSection?: boolean;
   value: Record<string, string>;
   onChange: (value: Record<string, string>) => void;
 }) {
@@ -52,9 +55,7 @@ export function EnrollmentFilters({
     [
       "program",
       "Cluster / strand",
-      programs.data
-        ?.filter((p) => !value.track || p.track === value.track)
-        .map((p) => ({ value: String(p.id), label: p.name })) ?? [],
+      programs.data?.map((p) => ({ value: String(p.id), label: p.name })) ?? [],
     ],
     [
       "status",
@@ -85,28 +86,50 @@ export function EnrollmentFilters({
     ],
   ];
   return (
-    <div className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-      {choices.map(([key, label, options]) => (
-        <Field key={key} label={label}>
-          <select
-            value={value[key] ?? ""}
-            onChange={(e) =>
-              onChange({
-                ...value,
-                [key]: e.target.value,
-                ...(key === "track" ? { program: "" } : {}),
-              })
-            }
-          >
-            <option value="">All</option>
-            {options.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-        </Field>
-      ))}
-    </div>
+    <FilterDialog value={value} onApply={onChange}>
+      {(draft, change) => (
+        <>
+          {choices.map(([key, label, options]) => (
+            <Field key={key} label={label}>
+              <select
+                value={draft[key] ?? ""}
+                onChange={(e) =>
+                  change({
+                    ...draft,
+                    [key]: e.target.value,
+                    ...(key === "track" ? { program: "" } : {}),
+                  })
+                }
+              >
+                <option value="">All</option>
+                {options
+                  .filter(
+                    (o) =>
+                      key !== "program" ||
+                      !draft.track ||
+                      programs.data?.find((p) => String(p.id) === o.value)
+                        ?.track === draft.track,
+                  )
+                  .map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+              </select>
+            </Field>
+          ))}
+          {includeSection && (
+            <Field label="Section Identifier">
+              <input
+                type="number"
+                min={1}
+                value={draft.section ?? ""}
+                onChange={(e) => change({ ...draft, section: e.target.value })}
+              />
+            </Field>
+          )}
+        </>
+      )}
+    </FilterDialog>
   );
 }

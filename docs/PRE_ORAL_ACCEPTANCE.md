@@ -80,7 +80,7 @@ For synthetic demonstrations in steps 17–18, label the remarks **“DEMO ONLY 
 5. Compare the corresponding altered test PDF. Expected: **File does not match the record**. The uploaded school file is unchanged by this comparison.
 6. Click **Show QR Code** and optionally Download QR. Generate it using the forwarded HTTPS portal address for phone testing. Scan using the phone's camera/browser.
 7. While signed out, the verification URL must go to sign-in. Sign in as the owner or authorized Registrar/Admin: the same verification page opens. Sign in as another learner: access is denied and no document details/QR are displayed.
-8. Open **Blockchain Verification → Technical details**. Record event, status, SHA-256, transaction hash, block and confirmation count. Network details identify local chain 31337 and deployed contract.
+8. Open **Blockchain Verification**, then the row’s **View Details** button. Record event, status, SHA-256, transaction hash, block and confirmation count. The **Network Details** button identifies local chain 31337 and deployed contract.
 9. Administrator/Registrar → Reports → **Blockchain Transaction Report**. Filter by the test application cohort/year/grade; export CSV and PDF. Show DOCUMENT_VERIFIED, PRE_ENROLLMENT_CONFIRMED and REGISTRATION_RECORDED events at their respective stages.
 10. Explain the contract evidence: only its configured issuer can register; empty hashes/references and conflicting replacements are rejected; the same identical proof is idempotent. Automated tests execute these conditions against a real isolated local EVM.
 
@@ -145,3 +145,12 @@ See `docs/CLIENT_TESTING.md` for the dated validation results. Preserve screensh
 ## Remaining decisions and limits
 
 Production multi-node/public-chain choice and wallet custody; hosting/TLS and encrypted-volume/backup policy; mandatory staff MFA and recovery; school retention/consent; official academic eligibility scoring; actual school program list; formal post-LIS corrections; malware/OCR/issuer validation; external email/SMS; official LIS API documentation. These are not represented as completed features. GitHub-hosted CI was previously blocked by an account billing issue; local/Docker validation is separate from a green GitHub Actions badge.
+
+## Updated Workspace Controls
+
+- Click outside the account card or press Escape to close it. On phones, navigation opens as a drawer with a backdrop; outside click, Escape or selecting a link closes it.
+- In Reports, Sections, Early Enrollment and Audit Logs, open **Filters**, choose values and **Apply Filters**. Cancel leaves the current results unchanged; the clear icon removes active filters.
+- Report export buttons are labeled **CSV** and **PDF**. On phones, the summary shows key fields; the row's three-dot button opens **Report Details**. Desktop reports retain full columns with horizontal table scrolling when needed.
+- **View Roster**, **Add Configuration** and **Edit** open dialogs. Closing returns to the originating control.
+- Blockchain Verification displays 20 records at a time, with **Previous / Next** continuation controls, filters, hash lookup, Recorded-date sorting and a details dialog. No full-history download or total-count query is needed to browse it.
+- PDF preview has one vertical scroll region. Horizontal panning remains available when zoomed in.

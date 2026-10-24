@@ -46,11 +46,11 @@ export function IntegrityCheck({
         Check stored PDF
       </button>
       <form
-        className="mt-3 space-y-3"
+        className="mt-4 grid items-end gap-3 sm:grid-cols-[minmax(0,1fr)_auto]"
         onSubmit={(e) => {
           e.preventDefault();
           const file = new FormData(e.currentTarget).get("file");
-          if (file instanceof File) check.mutate(file);
+          if (file instanceof File && file.size > 0) check.mutate(file);
         }}
       >
         <Field label="PDF to compare">

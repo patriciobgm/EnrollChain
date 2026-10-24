@@ -64,11 +64,11 @@ export function Page({
   children,
 }: PropsWithChildren<{ title: string }>) {
   return (
-    <div className="page-enter mx-auto max-w-6xl px-5 py-9 sm:px-8 sm:py-12">
-      <div className="mb-8 border-b border-line pb-6">
+    <div className="page-enter mx-auto max-w-6xl px-4 py-5 sm:px-6 sm:py-7">
+      <div className="mb-5 border-b border-line pb-4">
         <h1
           tabIndex={-1}
-          className="font-display text-3xl font-semibold tracking-tight sm:text-4xl"
+          className="text-2xl font-bold leading-tight tracking-tight sm:text-3xl"
         >
           {title}
         </h1>

@@ -55,3 +55,11 @@ Registrar reuses `/accounts/users/` for permitted list/retrieve/create operation
 Migration `admissions.0006` adds a read-only reminder timestamp. `send_requirement_reminders` locks each candidate application, rechecks due time and requirement upload eligibility, and atomically creates a notification, updates its timestamp and audits the send. The Docker worker checks every ten minutes; no external scheduler or email service is introduced.
 
 The existing report endpoint now accepts `report=blockchain-transactions`. It filters proof operation keys through the same scoped application cohort and checks blockchain-view permission. JSON pagination/sorting and CSV/PDF exports use the existing engine. GitHub's blockchain job now runs the real-EVM integration test in addition to compilation.
+
+### Compact Workspace and Large Blockchain Lists — October 24, 2026
+
+The shared header now uses an outside-click/Escape/focus-dismissed account card and a Radix mobile navigation drawer with backdrop, focus containment and scroll locking. Secondary filters use an Apply/Cancel dialog. Reports show compact summaries on phones with full-row detail dialogs; wide desktop tables retain their full columns. Section rosters and configuration create/edit forms use dialogs rather than appended page content. PDF pages no longer have a nested vertical scroll cap; the enclosing dialog/review area owns vertical scrolling.
+
+`GET /api/v1/blockchain-records/` now uses cursor pagination: `{next, previous, results}` with a maximum of 20 records. It intentionally has no total count or numeric page jump. Clients should follow `cursor` from the returned URLs. Supported filters: exact 64-hex transaction/content/reference hash (`search`, optional `0x`), `status`, `record_type`, inclusive `from`/`to` creation dates, and `ordering=created_at|-created_at`. Ownership and staff permission checks remain authoritative.
+
+`blockchain_records.0002` adds indexes for creation time, hash/reference lookup, and status/event-type plus creation time. Date filters use timestamp bounds, preserving index usability. A 100,000-record isolated PostgreSQL/API smoke test verified bounded first/next/filter/hash/sorted responses without a full-table count. This is not a concurrent production load or latency guarantee.

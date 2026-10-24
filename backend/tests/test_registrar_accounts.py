@@ -98,3 +98,16 @@ def test_registrar_creation_requires_current_password_and_rejects_privilege_flag
     payload.update(current_password=PASSWORD, is_superuser=True)
     assert client.post("/api/v1/accounts/users/", payload, format="json").status_code == 400
     assert not User.objects.filter(email=payload["email"]).exists()
+
+
+def test_superadmins_are_excluded_from_managed_directory_even_for_superadmin():
+    actor = User.objects.create_superuser(email="technical@test.example", password=PASSWORD)
+    learner = User.objects.create_user(email="visible@test.example", role="LEARNER")
+    client = APIClient()
+    client.force_authenticate(actor)
+    result = client.get("/api/v1/accounts/users/")
+    assert result.status_code == 200
+    assert result.data["count"] == 1
+    assert result.data["results"][0]["id"] == str(learner.pk)
+    assert client.get("/api/v1/accounts/users/?search=technical").data["count"] == 0
+    assert client.get(f"/api/v1/accounts/users/{actor.pk}/").status_code == 404

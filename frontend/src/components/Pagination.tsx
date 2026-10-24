@@ -23,19 +23,21 @@ export function Pagination({
           ? `${(page - 1) * pageSize + 1}–${Math.min(page * pageSize, count)} of ${count}`
           : "0 records"}
       </span>
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2">
         <Button
           variant="outline"
+          size="sm"
           disabled={busy || page <= 1}
           onClick={() => onChange(page - 1)}
         >
           Previous
         </Button>
-        <span>
+        <span className="whitespace-nowrap">
           Page {page} of {pages}
         </span>
         <Button
           variant="outline"
+          size="sm"
           disabled={busy || page >= pages}
           onClick={() => onChange(page + 1)}
         >

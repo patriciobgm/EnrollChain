@@ -37,7 +37,9 @@ try {
   await page.goto(`${base}/reports`);
   await page.getByLabel('Report', {exact:true}).selectOption('blockchain-transactions');
   await page.getByRole('table').waitFor();
-  await page.getByRole('columnheader', {name:/Transaction/}).waitFor();
+  await page.getByRole('button', {name:'View report row 1',exact:true}).click();
+  await page.getByRole('dialog', {name:'Report Details',exact:true}).waitFor();
+  await page.getByRole('dialog').getByText('Transaction', {exact:true}).waitFor();
   if(await page.getByRole('alert').count()) throw new Error('Report page has an error');
   console.log('PASS: Docker QR rendering, mobile layout, live blockchain comparison and transaction report.');
 } finally { await browser.close(); }

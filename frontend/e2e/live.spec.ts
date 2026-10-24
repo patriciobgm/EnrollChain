@@ -124,7 +124,7 @@ test.describe("Real Django workflow", () => {
     await expect(page.getByRole("table")).toBeVisible();
     await page.getByRole("button", { name: "View Ana Cruz" }).click();
     await expect(page.getByRole("table")).toHaveCount(0);
-    await page.getByRole("button", { name: "Back to records" }).click();
+    await page.getByRole("button", { name: "Back to Records" }).click();
     await expect(page.getByRole("table")).toBeVisible();
     await page.getByRole("button", { name: "Sign out", exact: true }).click();
     await signIn(page, "applicant");
@@ -194,6 +194,24 @@ test.describe("Real Django workflow", () => {
           ),
       )
       .toBeGreaterThan(300);
+    await dialog.getByRole("button", { name: "Zoom out", exact: true }).click();
+    await expect(dialog.getByText("75%", { exact: true })).toBeVisible();
+    await expect(
+      dialog.getByText("Rendering page…", { exact: true }),
+    ).toHaveCount(0);
+    const settledSize = await dialog
+      .locator("canvas")
+      .evaluate((node: HTMLCanvasElement) => [node.width, node.height]);
+    await page.waitForTimeout(800);
+    expect(
+      await dialog
+        .locator("canvas")
+        .evaluate((node: HTMLCanvasElement) => [node.width, node.height]),
+    ).toEqual(settledSize);
+    await expect(
+      dialog.getByText("Rendering page…", { exact: true }),
+    ).toHaveCount(0);
+    await dialog.getByRole("button", { name: "Zoom in", exact: true }).click();
     await dialog.getByText("Accessible page text", { exact: true }).click();
     await expect(
       dialog.getByText("Synthetic review document - page 1", { exact: true }),
@@ -204,6 +222,29 @@ test.describe("Real Django workflow", () => {
     ).toBeVisible();
     await dialog.getByRole("button", { name: "Zoom in" }).click();
     await expect(dialog.getByText("125%", { exact: true })).toBeVisible();
+    for (let step = 0; step < 3; step++)
+      await dialog
+        .getByRole("button", { name: "Zoom in", exact: true })
+        .click();
+    await expect(
+      dialog.getByText("Rendering page…", { exact: true }),
+    ).toHaveCount(0);
+    const surface = dialog.getByLabel("Scrollable PDF page", { exact: true });
+    const box = await surface.boundingBox();
+    if (!box) throw new Error("PDF surface missing");
+    const startX = box.x + Math.min(box.width - 30, 220);
+    const startY = Math.max(box.y, 100) + 80;
+    await page.mouse.move(startX, startY);
+    await page.mouse.down();
+    await page.mouse.move(startX - 90, startY - 60, { steps: 5 });
+    await page.mouse.up();
+    await expect
+      .poll(() => surface.evaluate((node) => node.scrollLeft))
+      .toBeGreaterThan(0);
+    for (let step = 0; step < 3; step++)
+      await dialog
+        .getByRole("button", { name: "Zoom out", exact: true })
+        .click();
     await page.addScriptTag({ content: axe.source });
     const accessibility = await page.evaluate(async () =>
       window.axe.run(document, {
@@ -248,8 +289,9 @@ test.describe("Real Django workflow", () => {
     await signIn(page, "administrator");
     await expect(page).toHaveURL(/administration$/);
     await page.getByRole("link", { name: "Audit Logs", exact: true }).click();
+    await page.getByRole("button", { name: "Filters", exact: true }).click();
     await page.getByLabel("Action", { exact: true }).fill("PREVIEW_DOCUMENT");
-    await page.getByRole("button", { name: "Apply filters" }).click();
+    await page.getByRole("button", { name: "Apply Filters" }).click();
     await expect(
       page.getByRole("heading", { name: "PREVIEW DOCUMENT" }).first(),
     ).toBeVisible();
@@ -399,6 +441,135 @@ test.describe("Real Django workflow", () => {
       page.getByRole("button", { name: "Show QR Code" }),
     ).toHaveCount(0);
   });
+  test("compact mobile navigation, account dismissal and filters keep results visible", async ({
+    page,
+  }) => {
+    await signIn(page, "administrator");
+    await expect(page).toHaveURL(/administration$/);
+    for (const width of [320, 390, 768]) {
+      await page.setViewportSize({ width, height: 844 });
+      await page.goto("/reports");
+      const account = page.getByRole("button", {
+        name: "Account menu",
+        exact: true,
+      });
+      await account.click();
+      await expect(account).toHaveAttribute("aria-expanded", "true");
+      await page.mouse.click(8, 600);
+      await expect(account).toHaveAttribute("aria-expanded", "false");
+      await account.click();
+      await page.keyboard.press("Escape");
+      await expect(account).toBeFocused();
+      const menu = page.getByRole("button", { name: "Open navigation" });
+      await menu.click();
+      const drawer = page.getByRole("dialog", { name: "Navigation" });
+      await expect(drawer).toBeVisible();
+      await page.screenshot({ path: `/tmp/enroll-ui-nav-${width}.png` });
+      expect(
+        await page
+          .locator("#root")
+          .evaluate((root) => root instanceof HTMLElement && root.inert),
+      ).toBe(true);
+      await page.mouse.click(width - 5, 120);
+      await expect(drawer).toHaveCount(0);
+      await expect(menu).toBeFocused();
+      await menu.click();
+      await drawer.getByRole("link", { name: "Reports", exact: true }).click();
+      await expect(drawer).toHaveCount(0);
+      await page.getByRole("button", { name: "Filters", exact: true }).click();
+      await page
+        .getByRole("dialog", { name: "Filters" })
+        .getByLabel("Grade", { exact: true })
+        .selectOption("11");
+      await page.getByRole("button", { name: "Apply Filters" }).click();
+      await expect(page.getByRole("dialog")).toHaveCount(0);
+      await expect(page.getByRole("table")).toBeVisible();
+      const position = await page.getByRole("table").boundingBox();
+      expect(position!.y).toBeLessThan(550);
+      if (width < 640)
+        expect(
+          await page
+            .getByRole("region", { name: "Report table", exact: true })
+            .evaluate((region) => region.scrollWidth <= region.clientWidth),
+        ).toBe(true);
+      await page.screenshot({ path: `/tmp/enroll-ui-reports-${width}.png` });
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= innerWidth,
+        ),
+      ).toBe(true);
+      await page.evaluate(axe.source);
+      expect(
+        await page.evaluate(async () =>
+          (
+            await window.axe.run(document, {
+              runOnly: {
+                type: "tag",
+                values: ["wcag2a", "wcag2aa", "wcag21aa"],
+              },
+            })
+          ).violations.map((v) => v.id),
+        ),
+      ).toEqual([]);
+    }
+  });
+  test("configuration and roster open in dialogs; PDF preview has one vertical scroll region", async ({
+    page,
+  }) => {
+    await signIn(page, "administrator");
+    await expect(page).toHaveURL(/administration$/);
+    await page.goto("/administration/configuration");
+    const add = page.getByRole("button", {
+      name: "Add configuration",
+      exact: true,
+    });
+    await add.click();
+    await expect(
+      page.getByRole("dialog", { name: "Add Configuration", exact: true }),
+    ).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(add).toBeFocused();
+    await page.goto("/sections");
+    const roster = page
+      .getByRole("button", { name: "View roster", exact: true })
+      .first();
+    await roster.click();
+    await expect(page.getByRole("dialog", { name: /Roster/ })).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: "Ana Cruz", exact: true }),
+    ).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(roster).toBeFocused();
+    await page.goto(`/applications/${fixture.application}`);
+    await page
+      .getByRole("button", { name: "Preview PDF", exact: true })
+      .first()
+      .click();
+    const dialog = page.getByRole("dialog", {
+      name: "Document Preview",
+      exact: true,
+    });
+    await expect
+      .poll(() =>
+        dialog.locator("canvas").evaluate((c: HTMLCanvasElement) => c.width),
+      )
+      .toBeGreaterThan(300);
+    for (const width of [1280, 390]) {
+      await page.setViewportSize({ width, height: 844 });
+      await expect
+        .poll(() =>
+          dialog.evaluate(
+            (node) =>
+              [node, ...node.querySelectorAll("*")].filter(
+                (e) =>
+                  /^(auto|scroll)$/.test(getComputedStyle(e).overflowY) &&
+                  e.scrollHeight > e.clientHeight + 2,
+              ).length,
+          ),
+        )
+        .toBeLessThanOrEqual(1);
+    }
+  });
   test("MFA enrollment revokes sessions and a one-use recovery code signs in", async ({
     page,
   }) => {
@@ -428,7 +599,7 @@ test.describe("Real Django workflow", () => {
     ).toBeVisible();
     const recovery = await page.locator("li.select-all").first().textContent();
     if (!recovery) throw new Error("No recovery code");
-    await page.getByRole("link", { name: "Return to sign in" }).click();
+    await page.getByRole("link", { name: "Return to Sign In" }).click();
     await signIn(page, "other");
     await expect(
       page.getByLabel("Authentication or recovery code"),
