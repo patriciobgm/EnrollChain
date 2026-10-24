@@ -334,7 +334,7 @@ export function AppShell() {
                   to="/"
                   end
                   className={({ isActive }) =>
-                    `inline-flex min-h-11 items-center border-b-2 text-sm font-semibold ${isActive ? "border-brand text-brand" : "border-transparent text-muted"}`
+                    `inline-flex min-h-11 items-center border-b-2 text-sm font-semibold transition-colors duration-200 ${isActive ? "border-brand text-brand" : "border-transparent text-muted"}`
                   }
                 >
                   Home
@@ -342,7 +342,7 @@ export function AppShell() {
                 <NavLink
                   to="/login"
                   className={({ isActive }) =>
-                    `inline-flex min-h-11 items-center border-b-2 text-sm font-semibold ${isActive ? "border-brand text-brand" : "border-transparent text-muted"}`
+                    `inline-flex min-h-11 items-center border-b-2 text-sm font-semibold transition-colors duration-200 ${isActive ? "border-brand text-brand" : "border-transparent text-muted"}`
                   }
                 >
                   Sign In
@@ -351,7 +351,9 @@ export function AppShell() {
             </div>
           </header>
           <main id="main-content">
-            <Outlet />
+            <div key={location.pathname} className="public-page-enter">
+              <Outlet />
+            </div>
           </main>
         </>
       )}
