@@ -43,12 +43,20 @@ def test_real_registry_permissions_idempotence_and_integrity(settings):
         registry.functions.register(reference, digest, kind).transact(
             {"from": web3.eth.accounts[1]}
         )
+    for empty_reference, empty_hash in [(bytes(32), digest), (reference, bytes(32))]:
+        with pytest.raises((ContractLogicError, Web3RPCError)):
+            registry.functions.register(empty_reference, empty_hash, kind).transact(
+                {"from": web3.eth.accounts[0]}
+            )
     for _ in range(2):
         tx = registry.functions.register(reference, digest, kind).transact(
             {"from": web3.eth.accounts[0]}
         )
         assert web3.eth.wait_for_transaction_receipt(tx).status == 1
-    assert bytes(registry.functions.records(reference).call()[0]) == digest
+    recorded = registry.functions.records(reference).call()
+    assert bytes(recorded[0]) == digest
+    assert bytes(recorded[1]) == kind
+    assert recorded[2] > 0 and recorded[3] == web3.eth.accounts[0]
     with pytest.raises((ContractLogicError, Web3RPCError)):
         registry.functions.register(reference, b"x" * 32, kind).transact(
             {"from": web3.eth.accounts[0]}

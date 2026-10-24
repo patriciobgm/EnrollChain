@@ -1,7 +1,8 @@
+import { DocumentVerificationPage } from "../pages/DocumentVerificationPage";
 import { SectionsPage } from "../pages/SectionsPage";
 import { ReportsPage } from "../pages/ReportsPage";
 import { BlockchainPage } from "../pages/BlockchainPage";
-import { Navigate, Outlet, Route, Routes } from "react-router-dom";
+import { Navigate, Outlet, Route, Routes, useLocation } from "react-router-dom";
 
 import { ConfigurationPage } from "../pages/ConfigurationPage";
 import { AuditPage } from "../pages/AuditPage";
@@ -26,13 +27,17 @@ import { ApplicationDetailPage } from "../pages/ApplicationDetailPage";
 
 function Protected({ permission }: { permission?: string }) {
   const { user, loading } = useAuth();
+  const location = useLocation();
   if (loading)
     return (
       <div className="mx-auto max-w-6xl p-8">
         <LoadingState label="Restoring session…" />
       </div>
     );
-  if (!user) return <Navigate to="/login" replace />;
+  if (!user)
+    return (
+      <Navigate to="/login" state={{ returnTo: location.pathname }} replace />
+    );
   if (permission && !can(user, permission))
     return (
       <p role="alert" className="p-8">
@@ -68,6 +73,10 @@ export function App() {
             <Route path="sections" element={<SectionsPage />} />
             <Route path="reports" element={<ReportsPage />} />
             <Route path="blockchain" element={<BlockchainPage />} />
+            <Route
+              path="verify-documents/:id"
+              element={<DocumentVerificationPage />}
+            />
             <Route path="enrollments/:id" element={<EnrollmentDetailPage />} />
           </Route>
           <Route element={<Protected permission="view_learner" />}>

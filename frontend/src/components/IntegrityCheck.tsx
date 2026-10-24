@@ -1,4 +1,5 @@
 import { useMutation } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
 import { apiRequest } from "../lib/api";
 import { ErrorMessage, Field } from "./Form";
 interface Result {
@@ -8,7 +9,13 @@ interface Result {
   current_hash?: string;
   expected_hash?: string;
 }
-export function IntegrityCheck({ id }: { id: string }) {
+export function IntegrityCheck({
+  id,
+  standalone = false,
+}: {
+  id: string;
+  standalone?: boolean;
+}) {
   const check = useMutation({
     mutationFn: (file: File | null) => {
       const body = new FormData();
@@ -20,7 +27,10 @@ export function IntegrityCheck({ id }: { id: string }) {
     },
   });
   return (
-    <details className="w-full border-t border-line pt-3">
+    <details
+      open={standalone || undefined}
+      className="w-full border-t border-line pt-3"
+    >
       <summary className="cursor-pointer text-sm font-semibold text-brand">
         Check for file changes
       </summary>
@@ -55,6 +65,11 @@ export function IntegrityCheck({ id }: { id: string }) {
           Compare PDF
         </button>
       </form>
+      {!standalone && (
+        <Link className="action secondary mt-3" to={`/verify-documents/${id}`}>
+          Verification Link &amp; QR
+        </Link>
+      )}
       <ErrorMessage error={check.error} />
       {check.data && (
         <div role="status" className="mt-3 rounded-xl bg-canvas p-3 text-sm">

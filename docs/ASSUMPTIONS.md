@@ -5,7 +5,7 @@ The latest client workflow supplied by the user supersedes the earlier milestone
 ## Confirmed
 
 - EnrollChain manages early enrollment, pre-registration, private documents, preliminary sections, reports and manual LIS reconciliation. DepEd LIS remains the official enrollment record.
-- An learner completes one own learner profile. School administrators provision accounts; registrars/admins can link an unowned walk-in profile to an learner. Existing owned profiles cannot be reassigned.
+- A learner completes one own learner profile. School administrators provision accounts; registrars/admins can link an unowned walk-in profile to a learner. Existing owned profiles cannot be reassigned.
 - LRN is optional; a provided LRN must be unique and exactly12digits. Age is derived. Religion/IP membership stay private and off-chain.
 - Track names/codes and programs are configurable. Academic and TechPro categories default to40/25section capacity. Authorized capacity changes require a reason. No actual school strands are invented.
 - Early enrollment can be submitted before PDFs are uploaded. Intake DRAFT/SUBMITTED is preserved separately from enrollment processing stage.
@@ -17,7 +17,7 @@ The latest client workflow supplied by the user supersedes the earlier milestone
 - Class Advisers view only their assigned section rosters and enrollment progress. They do not authenticate documents.
 - Manual LIS states: NOT_READY → READY_FOR_LIS → SUBMITTED_TO_LIS → LIS_CONFIRMED or LIS_REJECTED. Only recorded LIS confirmation permits OFFICIALLY_ENROLLED. Confirmation/rejection requires evidence/remarks.
 - Real local EVM integrity records follow document verification, pre-enrollment confirmation and official registration recording. No PDFs or PII are on-chain. Hash match means unchanged content, not original authenticity. Duplicate hashes are review flags, not automatic fraud findings.
-- The latest explicit demo-reset request supersedes the earlier preservation request: remove the retired demo learner and its files, retire both old learner login IDs, and create learner@enrollchain.test. Preserve staff accounts and unrelated records. Subsequent work remains uncommitted.
+- The latest explicit demo-reset request supersedes the earlier preservation request: remove the retired demo learner and its files, retire both old learner login IDs, and create learner@enrollchain.test. Preserve staff accounts and unrelated records. That reset is historical; do not repeat it during client acceptance testing.
 
 ## Engineering assumptions
 
@@ -33,7 +33,7 @@ The latest client workflow supplied by the user supersedes the earlier milestone
 
 ## Still unanswered / deferred
 
-Actual strand/program list; academic eligibility thresholds; interview scheduling/outcome rubric; official LIS connector documentation; formal enrollment withdrawal/reversal; late-registration authorization; legacy imports; notifications; public/QR verification; production network, signer custody and recovery; malware scanning; retention/consent; hosting/TLS/backup recovery procedures; mandatory MFA and supervised lost-factor recovery. These are not represented as completed production features.
+Actual strand/program list; academic eligibility thresholds; interview scheduling/outcome rubric; official LIS connector documentation; formal enrollment withdrawal/reversal; late-registration authorization; legacy imports; external email/SMS notifications; public anonymous verification; production network, signer custody and recovery; malware scanning; retention/consent; hosting/TLS/backup recovery procedures; mandatory MFA and supervised lost-factor recovery. These are not represented as completed production features.
 
 ### Latest UI and Account Decisions
 
@@ -46,3 +46,11 @@ Actual strand/program list; academic eligibility thresholds; interview schedulin
 - Registrar may create learner accounts in addition to the existing learner-profile/walk-in flow. Creation requires account permission, the Registrar’s password and MFA when enabled; it is audited.
 - Pending clarification of “teacher,” use the existing Class Adviser role. No new generic teacher role or Guidance provisioning authority is assumed. Registrar provisioning is create-only; existing account changes remain administrative.
 - Display categories as New, Balik-Aral and Transferee. Balik-Aral retains the existing RETURNING database/API code and configured document rules. Grade remains an application attribute limited to 11 or 12, allowing the same learner’s later enrollment history.
+
+### Panel Readiness — October 24, 2026
+
+- QR verification is an authenticated link to a document version, not a public authenticity certificate. Ownership and document permissions still apply; QR has only the portal origin and opaque UUID path. Portal origin must match the API request host or an explicitly trusted CORS origin.
+- Private requirements reminders run in the Docker worker every ten minutes. First eligibility is 24 hours after submission, then at most once per 24 hours per application. Only actionable mandatory missing/correction uploads in active open periods trigger them. No email/SMS is sent.
+- A read-only application timestamp, locked transactionally, prevents duplicate reminders even if the notification is deleted. Reminder activity is audited; its timing does not imply an admission deadline.
+- The thirteenth report is a filtered blockchain transaction dataset. It reuses CSV/PDF exports and requires enrollment-report and blockchain-view permissions.
+- Password hashing, encrypted MFA secrets, private authorization and deployment HTTPS are distinct controls. Files and full database contents are not application-level encrypted; production at-rest encryption remains a deployment decision.

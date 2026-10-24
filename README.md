@@ -148,3 +148,7 @@ See [readiness testing and accounts](docs/READINESS_ACCEPTANCE.md) for startup, 
 After dependency installation, apply migrations and run `setup_admissions_roles`, then sign out and back in. The learner role is now LEARNER. The retired demo identities and their records were explicitly reset; staff credentials remain unchanged. See docs/CLIENT_TESTING.md for current accounts.
 
 Browser tests now include a disposable real Django/SQLite server. Install backend requirements into `backend/.venv` (or set `E2E_PYTHON` to that environment's Python), install Chromium with `npx playwright install chromium`, then run `npm run test:e2e` from `frontend/`. Tests create isolated databases and private PDFs; they do not reset local user data.
+
+## Pre-Oral Client Acceptance
+
+See [panel coverage and end-to-end test scenarios](docs/PRE_ORAL_ACCEPTANCE.md) for the nine panel items, Docker account roles, QR/blockchain demonstrations, and defense limitations. Passwords stay in the ignored `.client-test/LOGIN_ACCOUNTS.md` file.

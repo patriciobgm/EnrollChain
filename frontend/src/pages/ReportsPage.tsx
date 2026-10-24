@@ -19,6 +19,7 @@ const reports = {
   "for-lis": "Learners for LIS Registration",
   "lis-confirmed": "LIS Confirmed Learners",
   "status-summary": "Registration Status Summary",
+  "blockchain-transactions": "Blockchain Transaction Report",
 };
 interface Report {
   title: string;
@@ -64,7 +65,7 @@ export function ReportsPage() {
     }
   }
   return (
-    <Page title="Early enrollment reports">
+    <Page title="Enrollment & Transaction Reports">
       <EnrollmentFilters
         value={filters}
         onChange={(value) => {

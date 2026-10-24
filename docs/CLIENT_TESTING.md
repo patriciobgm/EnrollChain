@@ -128,3 +128,21 @@ After upgrading, run `python manage.py migrate` and `python manage.py setup_admi
 Registrar → Learner & Teacher Accounts → Create Account permits Learner or Teacher / Class Adviser. Confirm with the Registrar’s own current password and MFA when enabled. Existing learner profile creation/linking remains in Learner Records. Account editing and other staff-role provisioning remain with administration. Class Adviser is the current interpretation of teacher pending client clarification.
 
 Application creation/editing offers New, Balik-Aral and Transferee, with Grade 11 or Grade 12. Early Enrollment and reports can filter by grade and classification together. Balik-Aral uses the existing RETURNING code; existing data and requirement rules are retained.
+
+## Panel Readiness Validation — October 24, 2026
+
+The nine panel items were compared with the current implementation. Existing functionality was retained. Added authenticated QR verification, private daily requirements reminders, a blockchain transaction report, and real-EVM CI assertions. Full walkthrough: [Pre-Oral Acceptance](PRE_ORAL_ACCEPTANCE.md).
+
+- **115 backend tests passed, none skipped**, inside the rebuilt image against disposable PostgreSQL and a separate real EVM. Includes capacity concurrency and real issuer/idempotence/conflict/empty-proof/timestamp/hash checks.
+- Local SQLite: **113 passed, 2 environment-specific skips**; those two passed in the Docker run.
+- Frontend: **20 unit tests and 11 browser workflow tests passed**, including QR login return, ownership denial, QR rendering and accessibility.
+- **43 Docker role/page checks** passed across the six provided accounts, plus a dedicated mobile QR/live-chain/report browser check.
+- All **13 reports** returned JSON, CSV and PDF through the web proxy (39 successful responses).
+- All **10 existing PDF versions** previewed privately and matched stored SHA-256. All **8 verified versions** matched actual blockchain records. All 12 recorded event proofs were confirmed after local-chain recovery.
+- Ruff, Django system checks, migration consistency, strict OpenAPI validation, frontend lint/build and Compose configuration passed. Both Solidity contracts compiled afresh inside the isolated EVM container.
+- Fresh migrations and rollback/reapplication of `admissions.0006` passed in an isolated database. The deployed client database has the migration applied.
+- HTTP validation caught a QR-origin port mismatch in Nginx; preserving the incoming Host header fixed it, and both HTTP and browser checks passed afterward.
+- Existing 9 accounts, 3 learner profiles, 2 applications and 10 PDFs were retained. Six supplied test credentials were verified without resets. The original demo learner is already OFFICIALLY_ENROLLED; create a new synthetic learner for a fresh flow.
+- Backups: `.client-test/backups/panel-20261024/database.dump` and `volumes.tar.gz`. Credentials remain private in `.client-test/LOGIN_ACCOUNTS.md`. Synthetic upload/comparison samples: `.client-test/EnrollChain-Test-Samples.zip`.
+
+The client stack is running at `http://localhost:8080`; web/backend/database/chain are healthy and the worker is running. Only loopback port 8080 is published. Public port forwarding was not configured or verified in this run. For phone QR testing, generate the QR while using the actual forwarded portal URL. No commit or push was performed for this update.

@@ -112,7 +112,7 @@ The data model reuses learner, application, year/period, configurable track/prog
 
 ## 9. Reports and traceability
 
-The twelve reports are Early Enrollment Master List; Enrollment by Track; Enrollment by Cluster/Strand; Enrollment by Section; Section Master List; Section Capacity/Utilization; Unassigned Learners; Pending Document Verification; Pre-Enrolled Learners; Learners for LIS Registration; LIS Confirmed Learners; Registration Status Summary.
+The thirteen reports are Early Enrollment Master List; Enrollment by Track; Enrollment by Cluster/Strand; Enrollment by Section; Section Master List; Section Capacity/Utilization; Unassigned Learners; Pending Document Verification; Pre-Enrolled Learners; Learners for LIS Registration; LIS Confirmed Learners; Registration Status Summary; Blockchain Transaction Report.
 
 Filters include applicable school year, grade, track/program, enrollment/LIS status and learner classification. Submitted master-list data excludes unsent drafts. Category/section summaries aggregate records, while learner-list reports show individual records. CSV and PDF exports use the same underlying datasets as the report view.
 
@@ -159,3 +159,7 @@ No specific minimum hardware or supported concurrent-user capacity has been benc
 Suggested demonstration order: learner profile/application, correction/version history, verified PDF preview, original-versus-edited integrity check, Guidance completion, Registrar qualification, section assignment, manually evidenced LIS confirmation, reports, audit trail, role isolation.
 
 Keep credentials and private records out of defense slides. Do not present synthetic LIS evidence or DEMO programs as real official enrollment or approved school offerings.
+
+## October 24 Panel Update
+
+The system now includes authenticated QR document verification, private daily requirements reminders, and a Blockchain Transaction Report (13 reports total). These do not change Registrar authentication responsibility or the distinction between pre-enrollment and LIS-confirmed enrollment. Use [the current panel and end-to-end guide](PRE_ORAL_ACCEPTANCE.md) for updated evidence and boundaries.

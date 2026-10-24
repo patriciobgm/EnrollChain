@@ -84,3 +84,27 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: docker compose -f ../docker-compose.yml config --quiet
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: pip install -r ../backend/requirements-dev.txt
+      - name: Test deployed contract and document integrity on a real local EVM
+        env:
+          BLOCKCHAIN_LOCAL_CONFIG: "false"
+          ENROLLCHAIN_TEST_RPC: http://127.0.0.1:8545
+        run: |
+          npx hardhat node --hostname 127.0.0.1 > /tmp/enrollchain-evm.log 2>&1 &
+          chain_pid=$!
+          trap 'kill "$chain_pid"' EXIT
+          python - <<'PYTHON'
+          import time
+          from web3 import Web3
+          for attempt in range(60):
+              if Web3(Web3.HTTPProvider("http://127.0.0.1:8545")).is_connected():
+                  break
+              time.sleep(1)
+          else:
+              raise SystemExit("Test chain did not start")
+          PYTHON
+          cd ../backend
+          pytest tests/test_evm_integration.py -q

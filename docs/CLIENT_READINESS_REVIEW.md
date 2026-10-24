@@ -1,3 +1,5 @@
+> Historical readiness review. For the October 24 implemented panel scope and validation, see [Pre-Oral Acceptance](PRE_ORAL_ACCEPTANCE.md) and [Client Testing](CLIENT_TESTING.md).
+
 # EnrollChain client and research-defense readiness review
 
 > Historical assessment: demo preservation and old accounts below were superseded by the latest explicit reset. Use [Client Testing](CLIENT_TESTING.md) for the current workflow and credentials.

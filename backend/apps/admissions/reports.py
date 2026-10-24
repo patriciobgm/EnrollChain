@@ -4,7 +4,18 @@ import csv
 from io import BytesIO
 from xml.sax.saxutils import escape
 
-from django.db.models import Case, CharField, Count, ExpressionWrapper, F, FloatField, Value, When
+from django.db.models import (
+    Case,
+    CharField,
+    Count,
+    ExpressionWrapper,
+    F,
+    FloatField,
+    Q,
+    Value,
+    When,
+)
+from django.db.models.functions import Cast, Concat, Replace
 from django.http import HttpResponse
 from django.utils import timezone
 from drf_spectacular.utils import OpenApiParameter, OpenApiTypes, extend_schema
@@ -32,6 +43,7 @@ REPORTS = {
     "for-lis": "Learners for LIS Registration",
     "lis-confirmed": "LIS Confirmed Learners",
     "status-summary": "Registration Status Summary",
+    "blockchain-transactions": "Blockchain Transaction Report",
 }
 
 
@@ -83,7 +95,58 @@ def report_data(kind, request):
         page_number = paginator.page.number
         return page
 
-    if kind in {"section-master", "section-utilization"}:
+    if kind == "blockchain-transactions":
+        from rest_framework.exceptions import PermissionDenied
+
+        from apps.blockchain_records.models import BlockchainTransaction
+
+        from .models import DocumentSubmission
+
+        if not request.user.has_perm("blockchain_records.view_blockchaintransaction"):
+            raise PermissionDenied("Blockchain monitoring permission is required.")
+
+        def keys(records, prefix):
+            return (
+                records.order_by()
+                .annotate(
+                    proof_key=Concat(
+                        Value(prefix + ":"),
+                        Replace(Cast("pk", output_field=CharField()), Value("-"), Value("")),
+                    )
+                )
+                .values("proof_key")
+            )
+
+        documents = DocumentSubmission.objects.filter(application__in=queryset)
+        proofs = BlockchainTransaction.objects.annotate(
+            normalized_key=Replace("operation_key", Value("-"), Value(""))
+        ).filter(
+            Q(normalized_key__in=keys(documents, "DOCUMENT_VERIFIED"))
+            | Q(normalized_key__in=keys(queryset, "PRE_ENROLLMENT_CONFIRMED"))
+            | Q(normalized_key__in=keys(queryset, "REGISTRATION_RECORDED"))
+        )
+        fields = {
+            "Event": "record_type",
+            "Status": "status",
+            "SHA-256": "record_hash",
+            "Transaction": "transaction_hash",
+            "Chain": "chain_id",
+            "Block": "block_number",
+            "Created": "created_at",
+            "Confirmed": "confirmed_at",
+        }
+        rows = [
+            {
+                column: (
+                    getattr(proof, field).isoformat()
+                    if field.endswith("_at") and getattr(proof, field)
+                    else getattr(proof, field) or ""
+                )
+                for column, field in fields.items()
+            }
+            for proof in window(ordered(proofs, request.query_params, fields, "-Created"))
+        ]
+    elif kind in {"section-master", "section-utilization"}:
         sections = (
             Section.objects.select_related("track", "program", "school_year")
             .annotate(assigned=Count("assignments"))

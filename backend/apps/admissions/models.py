@@ -168,6 +168,7 @@ class Application(Timestamped):
     status = models.CharField(max_length=10, choices=Status.choices, default=Status.DRAFT)
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
     submitted_at = models.DateTimeField(null=True, blank=True)
+    last_requirements_reminder_at = models.DateTimeField(null=True, blank=True, editable=False)
     enrollment_status = models.CharField(
         max_length=32,
         default="DRAFT",

@@ -426,6 +426,48 @@ class DocumentViewSet(
         )
         return Response(result)
 
+    @extend_schema(
+        parameters=[OpenApiParameter("origin", str, required=True)],
+        responses={(200, "image/svg+xml"): OpenApiTypes.BINARY},
+    )
+    @action(detail=True, methods=["get"], url_path="verification-qr")
+    def verification_qr(self, request, pk=None):
+        from urllib.parse import urlsplit
+
+        from django.conf import settings
+        from django.http import HttpResponse
+        from reportlab.graphics import renderSVG
+        from reportlab.graphics.barcode.qr import QrCodeWidget
+        from reportlab.graphics.shapes import Drawing
+
+        document = self.get_object()
+        origin = request.query_params.get("origin", "")
+        try:
+            parsed = urlsplit(origin)
+            valid = (
+                parsed.scheme in {"http", "https"}
+                and parsed.netloc
+                and not parsed.username
+                and not parsed.password
+                and parsed.path in {"", "/"}
+                and not parsed.query
+                and not parsed.fragment
+                and "\\" not in origin
+                and (parsed.netloc == request.get_host() or origin in settings.CORS_ALLOWED_ORIGINS)
+            )
+        except ValueError:
+            valid = False
+        if not valid:
+            raise ValidationError({"origin": "Use the current school portal origin."})
+        url = f"{parsed.scheme}://{parsed.netloc}/verify-documents/{document.pk}"
+        drawing = Drawing(256, 256)
+        drawing.add(QrCodeWidget(url, barWidth=256, barHeight=256, barBorder=4))
+        audit(document, "GENERATE_DOCUMENT_QR", request)
+        response = HttpResponse(renderSVG.drawToString(drawing), content_type="image/svg+xml")
+        response["Cache-Control"] = "private, no-store"
+        response["X-Content-Type-Options"] = "nosniff"
+        return response
+
     def _serve_pdf(self, request, pk, *, attachment):
         document = get_object_or_404(self.get_queryset(), pk=pk)
         try:

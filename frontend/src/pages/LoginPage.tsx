@@ -1,12 +1,23 @@
 import { LoadingState } from "../components/ui/LoadingState";
 import { useState, type FormEvent } from "react";
-import { Navigate } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
 import { ErrorMessage, Field, Page } from "../components/Form";
 import { landingPage } from "../lib/access";
 import { useAuth } from "../lib/auth";
 
 export function LoginPage() {
   const auth = useAuth();
+  const location = useLocation();
+  const state: unknown = location.state;
+  const destination =
+    state && typeof state === "object" && "returnTo" in state
+      ? state.returnTo
+      : null;
+  const returnTo =
+    typeof destination === "string" &&
+    /^\/verify-documents\/[0-9a-f-]{36}$/.test(destination)
+      ? destination
+      : null;
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [factorRequired, setFactorRequired] = useState(false);
@@ -37,7 +48,8 @@ export function LoginPage() {
         <LoadingState label="Restoring session…" />
       </Page>
     );
-  if (auth.user) return <Navigate to={landingPage(auth.user)} replace />;
+  if (auth.user)
+    return <Navigate to={returnTo ?? landingPage(auth.user)} replace />;
   return (
     <section className="mx-auto flex min-h-[70dvh] max-w-md flex-col justify-center px-5 py-10">
       <div className="rounded-3xl border border-line bg-surface p-7 shadow-panel sm:p-9">

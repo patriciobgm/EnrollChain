@@ -357,6 +357,48 @@ test.describe("Real Django workflow", () => {
     ).toBeVisible();
     expect(serverLog).not.toContain("Traceback");
   });
+  test("QR destination survives sign-in and enforces document ownership", async ({
+    page,
+  }) => {
+    const destination = `/verify-documents/${fixture.document}`;
+    await page.goto(destination);
+    await expect(page).toHaveURL(/login/);
+    await page
+      .getByLabel("Email", { exact: true })
+      .fill("registrar@live.example.test");
+    await page.getByLabel("Password", { exact: true }).fill(password);
+    await page.getByRole("button", { name: "Sign in", exact: true }).click();
+    await expect(page).toHaveURL(new RegExp(destination));
+    await expect(
+      page.getByRole("heading", { name: "Document Verification", exact: true }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Show QR Code" }).click();
+    const qr = page.getByRole("img", { name: /QR code linking/ });
+    await expect(qr).toBeVisible();
+    await expect
+      .poll(() => qr.evaluate((img: HTMLImageElement) => img.naturalWidth))
+      .toBeGreaterThan(0);
+    await page.getByRole("button", { name: "Check stored PDF" }).click();
+    await expect(page.getByText("File matches the record")).toBeVisible();
+    await page.evaluate(axe.source);
+    expect(
+      await page.evaluate(async () =>
+        (
+          await window.axe.run(document, {
+            runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21aa"] },
+          })
+        ).violations.map((v) => v.id),
+      ),
+    ).toEqual([]);
+    await page.getByRole("button", { name: "Sign out", exact: true }).click();
+    await signIn(page, "other");
+    await expect(page).toHaveURL(/dashboard/);
+    await page.goto(destination);
+    await expect(page.getByRole("alert")).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Show QR Code" }),
+    ).toHaveCount(0);
+  });
   test("MFA enrollment revokes sessions and a one-use recovery code signs in", async ({
     page,
   }) => {
